@@ -1,181 +1,163 @@
 # PCB Defect Detection
 
-This repository contains a deep learning-based solution for detecting defects in Printed Circuit Boards (PCBs) using YOLOv8.
+Deep learning PCB defect detection using YOLOv8 with multi-platform GPU support.
 
 ## Features
 
-- Multi-platform support (Linux, macOS, Windows)
-- GPU acceleration support for:
-  - NVIDIA GPUs (CUDA)
-  - AMD GPUs (ROCm)
-  - Apple Silicon (M1/M2)
-- Automated environment setup
-- YOLOv8-based object detection
-- Training and evaluation scripts
-- Production-ready inference
+- **Multi-GPU Support**: NVIDIA (CUDA), AMD (ROCm), Apple Silicon (MPS)
+- **Automated Setup**: Platform detection and dependency installation
+- **YOLOv8 Detection**: Baseline (n) and Production (s) models
+- **Evaluation Metrics**: mAP, precision, recall, per-class AP
 
-## System Requirements
+## Requirements
 
-### Common Requirements
-
-- Python 3.8 - 3.12
+- Python 3.8-3.12
 - Git
 
-### GPU Support Requirements
+### GPU Requirements
 
-#### NVIDIA GPUs
-
-- NVIDIA GPU with CUDA capability
-- NVIDIA drivers and CUDA toolkit 11.8+
-
-#### AMD GPUs
-
-- AMD GPU with ROCm support
-- ROCm 6.0+ installed
-- Linux operating system
-
-#### Apple Silicon
-
-- M1/M2 Mac
-- macOS 12.0+
+| Platform      | Requirements                  |
+| ------------- | ----------------------------- |
+| NVIDIA        | CUDA 11.8+, drivers installed |
+| AMD           | ROCm 6.0+, Linux only         |
+| Apple Silicon | macOS 12.0+, M1/M2            |
 
 ## Installation
-
-1. Clone the repository:
 
 ```bash
 git clone https://github.com/SiemonCha/pcb-defect-detection.git
 cd pcb-defect-detection
-```
 
-2. Create a Conda environment (recommended):
-
-```bash
+# Create environment
 conda create -n pcb312 python=3.12
 conda activate pcb312
-```
 
-3. Install dependencies:
-
-```bash
+# Auto-install dependencies
 python install.py
 ```
 
-The installation script will automatically detect your platform and install the appropriate versions of PyTorch and other dependencies.
+## Quick Start
+
+```bash
+# 1. Download dataset
+python data_download.py
+
+# 2. Train baseline (fast)
+python train_baseline.py
+
+# 3. Evaluate
+python evaluate.py
+
+# 4. Train production (better accuracy)
+python train_production.py
+```
 
 ## Project Structure
 
 ```
 pcb-defect-detection/
-├── data/                    # Dataset directory
-│   └── data.yaml           # Dataset configuration
-├── requirements/            # Platform-specific requirements
-│   ├── requirements-common.txt
-│   ├── requirements-cuda.txt
-│   ├── requirements-rocm.txt
-│   └── requirements-mac.txt
-├── train_baseline.py       # Training script
-├── train_production.py     # Production training script
-├── evaluate.py             # Evaluation script
-├── data_download.py        # Dataset download script
-└── install.py             # Automated installation script
+├── data/
+│   └── printed-circuit-board-2/
+│       └── data.yaml              # Dataset config
+├── requirements/
+│   ├── requirements-common.txt    # Shared dependencies
+│   ├── requirements-cuda.txt      # NVIDIA GPU
+│   ├── requirements-rocm.txt      # AMD GPU
+│   └── requirements-mac.txt       # Apple Silicon
+├── train_baseline.py              # YOLOv8n (fast)
+├── train_production.py            # YOLOv8s (accurate)
+├── evaluate.py                    # Test set evaluation
+├── data_download.py               # Roboflow dataset
+└── install.py                     # Auto-installer
 ```
 
-## Training
+## Training Details
 
-1. Prepare your dataset:
+### Baseline (YOLOv8n)
 
-   - Organize your PCB images and annotations
-   - Update `data/data.yaml` with your dataset paths
+- **Speed**: ~50 epochs in 15-30 min (GPU)
+- **Size**: 6.3M params
+- **Target**: Quick validation, >80% mAP@0.5
 
-2. Start training:
+### Production (YOLOv8s)
+
+- **Speed**: ~100 epochs in 1-2 hours (GPU)
+- **Size**: 11.2M params
+- **Target**: >85% mAP@0.5, <100ms inference
+
+## Platform Support
+
+### AMD ROCm
+
+**Important**: PyTorch ROCm uses `'cuda'` as device string (not `'xpu'`). Detection via `torch.version.hip`.
+
+**Check GPU**:
 
 ```bash
-python train_baseline.py
+rocm-smi
+python test_gpu.py
 ```
 
-The script will automatically detect and use the best available hardware:
+### NVIDIA CUDA
 
-- NVIDIA GPU with CUDA
-- AMD GPU with ROCm
-- Apple Silicon GPU
-- CPU (if no GPU is available)
-
-## Model Training Parameters
-
-The default training configuration includes:
-
-- Base model: YOLOv8n
-- Input size: 640x640
-- Batch size: 8
-- Epochs: 50
-- Learning rate: Auto-configured
-- Data augmentation: Enabled
-- Early stopping: Enabled (patience=10)
-
-## Hardware Support Details
-
-### NVIDIA GPUs
-
-- Uses CUDA acceleration
-- Supported by PyTorch with CUDA (cu118)
-- Recommended for Windows and Linux
-
-### AMD GPUs
-
-- Uses ROCm acceleration
-- Supported by PyTorch with ROCm 6.0
-- Linux only
-- Compatible with recent AMD GPUs (RX 6000 and 7000 series)
+```bash
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available())"
+```
 
 ### Apple Silicon
 
-- Uses Metal Performance Shaders (MPS)
-- Native ARM64 support
-- Optimized for M1/M2 chips
+```bash
+python -c "import torch; print(torch.backends.mps.is_available())"
+```
 
 ## Troubleshooting
 
-### Common Issues
+### AMD GPU not detected
 
-1. GPU not detected:
+```bash
+# Check ROCm
+rocm-smi
 
-   - NVIDIA: Check `nvidia-smi`
-   - AMD: Check `rocm-smi`
-   - Apple: Ensure using macOS 12.0+
+# Check PyTorch
+python -c "import torch; print(torch.version.hip)"
 
-2. Installation fails:
-   - Check Python version compatibility
-   - Verify GPU drivers are installed
-   - Ensure ROCm is properly installed (AMD)
+# User permissions
+sudo usermod -aG video $USER
+```
 
-### Platform-Specific Notes
+### NVIDIA GPU not detected
 
-#### AMD GPU Users
+```bash
+nvidia-smi
+nvcc --version  # Check CUDA toolkit
+```
 
-- Ensure ROCm is installed and working
-- Check GPU compatibility with ROCm
-- Verify user is in video group
+### Apple Silicon issues
 
-#### NVIDIA GPU Users
+- Use native ARM64 Python (not Rosetta)
+- Install XCode tools: `xcode-select --install`
 
-- Verify CUDA toolkit installation
-- Check NVIDIA driver version
-- Ensure sufficient GPU memory
+## Common Errors
 
-#### Apple Silicon Users
-
-- Use native ARM64 Python
-- Ensure XCode tools are installed
+| Error                 | Fix                          |
+| --------------------- | ---------------------------- |
+| `data.yaml not found` | Run `data_download.py` first |
+| `best.pt not found`   | Train model before evaluate  |
+| ROCm not using GPU    | Check user in `video` group  |
+| CUDA out of memory    | Reduce `batch` size          |
 
 ## License
 
-See the [LICENSE](LICENSE) file for license rights and limitations.
+MIT License - See [LICENSE](LICENSE)
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+1. Fork repo
+2. Create feature branch
+3. Test on your platform
+4. Submit PR with platform tested
+
+## Dataset
+
+Uses Roboflow 100 PCB dataset. See `data_download.py` for source.
