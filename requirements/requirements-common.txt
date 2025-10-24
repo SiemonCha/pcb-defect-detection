@@ -1,0 +1,27 @@
+# Core ML (platform-independent packages)
+ultralytics>=8.3.0
+albumentations>=1.4.0
+onnx>=1.16.0
+onnxruntime>=1.19.0
+
+# API & Deployment
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.9.0
+python-multipart>=0.0.12
+gradio>=4.44.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Development
+pytest>=8.3.0
+black>=24.10.0
+pylint>=3.3.0
+wandb>=0.18.0
+
+# Utils
+tqdm>=4.66.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
+roboflow>=1.1.0

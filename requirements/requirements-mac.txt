@@ -1,0 +1,4 @@
+# Mac (Apple Silicon) specific requirements
+torch
+torchvision
+--index-url https://download.pytorch.org/whl/nightly/cpu

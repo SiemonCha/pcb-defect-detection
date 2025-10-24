@@ -1,17 +1,32 @@
 """
-YOLOv8n Baseline - Fast training
+YOLOv8n Baseline - Fast training with multi-platform support
 """
 
 from ultralytics import YOLO
 import torch
+import platform
 
-# Check device
-if torch.backends.mps.is_available():
-    device = 'mps'
-    print(f">>>> Training on: Apple Silicon (MPS)")
-else:
-    device = 'cpu'
-    print(f">>>> Training on: CPU")
+def get_device_info():
+    """Get device information and capabilities"""
+    if torch.cuda.is_available():
+        device = 'cuda'
+        device_name = torch.cuda.get_device_name(0)
+        memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
+        print(f">>>> Training on: NVIDIA GPU - {device_name} ({memory:.1f} GB)")
+    elif hasattr(torch, 'xpu') and torch.xpu.is_available():
+        device = 'xpu'
+        device_name = torch.xpu.get_device_name()
+        print(f">>>> Training on: AMD GPU - {device_name}")
+    elif torch.backends.mps.is_available():
+        device = 'mps'
+        print(f">>>> Training on: Apple Silicon ({platform.processor()})")
+    else:
+        device = 'cpu'
+        print(f">>>> Training on: CPU ({platform.processor()})")
+    return device
+
+# Set device
+device = get_device_info()
 
 # Load model
 print("==== Loading YOLOv8n...")
