@@ -1,54 +1,183 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Environments
+# Environment and Dependencies
 .env
 .venv
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
+conda-env/
 pcb312/
+onnx311/
+pcb_env/
+pip-log.txt
+pip-delete-this-directory.txt
+.python-version
+.env.local
+.env.*.local
 
-# Dataset files (large)
-data/
-*.jpg
-*.png
-*.jpeg
-*.zip
-
-# Training outputs
-runs/
-weights/
-*.pt
-*.pth
-*.onnx
-
-# Logs
-*.log
-wandb/
-
-# Jupyter
-.ipynb_checkpoints
-*.ipynb
-
-# IDEs
+# IDE and Editor Files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
+*.iml
+.project
+.classpath
+.settings/
+.vs/
+.vscode-test/
+*.sublime-workspace
+*.sublime-project
+.netbeans/
+nbproject/
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# API keys
+# Data and Models
+data/
+dataset/
+datasets/
+raw_data/
+processed_data/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.pt
+*.pth
+*.weights
+*.pb
+*.onnx
+*.mlmodel
+*.torchscript
+*.engine
 dataset_path.txt
-*.txt.secret
-config.yaml
 
-# Cache
+# Training Outputs and Logs
+runs/
+wandb/
+logs/
+tensorboard/
+checkpoints/
+outputs/
+results/
+*.log
+*.json
+*.csv
+*.tsv
+metrics/
+eval/
+predictions/
+*.out
+slurm-*.out
+core.*
+
+# YOLO specific
+yolov8*/
+yolo*/
+*.pt
+*.yaml
+!data.yaml
+
+# Test and Coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+nosetests.xml
+.cache
+.hypothesis/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+._*
+.fuse_hidden*
+.nfs*
+.*.sw?
+
+# Documentation
+docs/_build/
+docs/generated/
+_docs/
+site/
+*.pdf
+*.docx
+*.pptx
+
+# Experiment Files
+experiments/
+exp*/
+archive/
+old/
+backup/
+debug/
+
+# System and Hidden Files
+.DS_Store
+.AppleDouble
+.LSOverride
+[Tt]humbs.db
+*.lnk
+$RECYCLE.BIN/
+.directory
+
+# Keep empty directories
+!.gitkeep
+!logs/.gitkeep
+!outputs/.gitkeep
+!outputs/models/.gitkeep
+!outputs/plots/.gitkeep
+!outputs/reports/.gitkeep
+
+# Others
+*.secret
+*.key
+config.yaml
+.env
 .cache/
-*.pyc
+*.db
+*.sqlite
+*.hdf5
+*.h5
+*.pkl
+*.npy
+*.npz

@@ -1,8 +1,17 @@
+# PCB Defect Detection - Requirements
+# Install: pip install -r requirements.txt
+# For GPU support, run: python install.py (auto-detects platform)
+
+# Python Version: 3.11 required (please use a conda env with Python 3.11)
+
 # Core ML
-ultralytics>=8.3.0
-albumentations>=1.4.0
-onnx>=1.16.0
-onnxruntime>=1.19.0
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+ultralytics>=8.3.0,<9.0.0
+albumentations>=1.4.0,<2.0.0
+onnx>=1.16.0,<2.0.0
+# For AMD GPUs:
+onnxruntime-rocm==1.22.2.post1
 
 # API & Deployment
 fastapi>=0.115.0
@@ -11,17 +20,33 @@ pydantic>=2.9.0
 python-multipart>=0.0.12
 gradio>=4.44.0
 
-# Database
+# Data & Database
 sqlalchemy>=2.0.0
+roboflow>=1.1.0
 
-# Development
+# Visualization (for confusion matrix)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pillow>=10.0.0
+
+# Development & Testing
 pytest>=8.3.0
 black>=24.10.0
 pylint>=3.3.0
+
+# Logging & Monitoring
 wandb>=0.18.0
 
 # Utils
 tqdm>=4.66.0
 pyyaml>=6.0.0
 python-dotenv>=1.0.0
-roboflow>=1.1.0
+requests>=2.31.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# Note: 
+# - PyTorch GPU support handled by install.py
+# - For NVIDIA: Uses CUDA 11.8+
+# - For AMD: Uses ROCm 6.0+
+# - For Apple Silicon: Uses MPS
