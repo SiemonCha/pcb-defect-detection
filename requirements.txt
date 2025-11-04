@@ -1,52 +1,129 @@
-# PCB Defect Detection - Requirements
-# Install: pip install -r requirements.txt
-# For GPU support, run: python install.py (auto-detects platform)
+# PCB Defect Detection - Universal Requirements
+# Works on: NVIDIA CUDA, AMD ROCm, Apple Silicon, CPU-only systems
+#
+# Installation:
+#   1. Create Python 3.11 environment:
+#      conda create -n pcb311 python=3.11
+#      conda activate pcb311
+#
+#   2. Install dependencies:
+#      pip install -r requirements.txt
+#
+#   3. Install platform-specific packages:
+#      python install.py
+#
+# The install.py script will detect your platform and install:
+#   - PyTorch (CUDA 11.8 / ROCm 6.0 / MPS / CPU)
+#   - ONNX Runtime (GPU / ROCm / CPU)
 
-# Python Version: 3.11 required (please use a conda env with Python 3.11)
+# ============================================================
+# Core ML Libraries (Platform-Independent)
+# ============================================================
+# Note: PyTorch installed by install.py based on your GPU
+# torch>=2.0.0         # Installed by install.py
+# torchvision>=0.15.0  # Installed by install.py
 
-# Core ML
-torch>=2.0.0,<3.0.0
-torchvision>=0.15.0,<1.0.0
 ultralytics>=8.3.0,<9.0.0
 albumentations>=1.4.0,<2.0.0
 onnx>=1.16.0,<2.0.0
-# For AMD GPUs:
-onnxruntime-rocm==1.22.2.post1
+onnxslim>=0.1.31
 
-# API & Deployment
+# Note: ONNX Runtime installed by install.py based on your GPU
+# onnxruntime        # CPU - installed by install.py
+# onnxruntime-gpu    # NVIDIA - installed by install.py  
+# onnxruntime-rocm   # AMD - installed by install.py
+
+# ============================================================
+# API & Web Framework
+# ============================================================
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic>=2.9.0
 python-multipart>=0.0.12
 gradio>=4.44.0
 
-# Data & Database
+# ============================================================
+# Data & Storage
+# ============================================================
 sqlalchemy>=2.0.0
 roboflow>=1.1.0
 
-# Visualization (for confusion matrix)
+# ============================================================
+# Visualization & Plotting
+# ============================================================
 matplotlib>=3.7.0
 seaborn>=0.12.0
 pillow>=10.0.0
 
+# ============================================================
 # Development & Testing
+# ============================================================
 pytest>=8.3.0
 black>=24.10.0
 pylint>=3.3.0
 
+# ============================================================
 # Logging & Monitoring
+# ============================================================
 wandb>=0.18.0
 
-# Utils
+# ============================================================
+# Utilities
+# ============================================================
 tqdm>=4.66.0
 pyyaml>=6.0.0
 python-dotenv>=1.0.0
 requests>=2.31.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
 opencv-python>=4.8.0
+psutil>=5.9.0
 
-# Note: 
-# - PyTorch GPU support handled by install.py
-# - For NVIDIA: Uses CUDA 11.8+
-# - For AMD: Uses ROCm 6.0+
-# - For Apple Silicon: Uses MPS
+# ============================================================
+# Platform Detection (for install.py)
+# ============================================================
+# These are used by install.py to detect your system
+py-cpuinfo>=9.0.0
+
+# ============================================================
+# IMPORTANT NOTES
+# ============================================================
+# 
+# Why PyTorch and ONNX Runtime are not listed here:
+# ------------------------------------------------
+# These packages have platform-specific versions that conflict:
+#
+# PyTorch:
+#   - NVIDIA:  torch+cu118 (CUDA 11.8)
+#   - AMD:     torch+rocm6.0 (ROCm 6.0)
+#   - Apple:   torch (with MPS support)
+#   - CPU:     torch (CPU-only)
+#
+# ONNX Runtime:
+#   - NVIDIA:  onnxruntime-gpu (CUDA)
+#   - AMD:     onnxruntime-rocm (ROCm)
+#   - Others:  onnxruntime (CPU)
+#
+# Installing multiple variants causes conflicts, so we let
+# install.py detect your platform and install the correct one.
+#
+# ============================================================
+# Manual Installation (if install.py doesn't work)
+# ============================================================
+#
+# For NVIDIA GPU (CUDA 11.8):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+#   pip install onnxruntime-gpu
+#
+# For AMD GPU (ROCm 6.0):
+#   pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.0
+#   pip install onnxruntime-rocm==1.22.2.post1
+#
+# For Apple Silicon (M1/M2/M3):
+#   pip install torch torchvision
+#   pip install onnxruntime
+#
+# For CPU-only:
+#   pip install torch torchvision
+#   pip install onnxruntime
+#
+# ============================================================
