@@ -1,4 +1,6 @@
-# Python
+# ===============================
+# PYTHON BUILD AND CACHE FILES
+# ===============================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,7 +23,9 @@ wheels/
 *.egg
 MANIFEST
 
-# Environment and Dependencies
+# ===============================
+# ENVIRONMENTS & DEPENDENCIES
+# ===============================
 .env
 .venv
 env/
@@ -30,41 +34,65 @@ ENV/
 env.bak/
 venv.bak/
 conda-env/
-pcb312/
-onnx311/
-pcb_env/
 pip-log.txt
 pip-delete-this-directory.txt
 .python-version
 .env.local
 .env.*.local
+*.yml
+*.yaml
+!data.yaml  # keep YOLO config file if needed
 
-# IDE and Editor Files
+# ===============================
+# IDE / EDITOR SETTINGS
+# ===============================
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 *.iml
+*.sublime-workspace
+*.sublime-project
 .project
 .classpath
 .settings/
 .vs/
 .vscode-test/
-*.sublime-workspace
-*.sublime-project
-.netbeans/
-nbproject/
+*.swp
+*.swo
+*~
+.nbproject/
 .DS_Store
 Thumbs.db
 Desktop.ini
 
-# Data and Models
+# ===============================
+# DATA & MODEL FILES
+# ===============================
+# Datasets
 data/
 dataset/
 datasets/
 raw_data/
 processed_data/
+PCB-defects-2/
+
+# Generated dataset path files
+dataset_path.txt
+dataset_path_*.txt
+train_dataset_path.txt
+val_dataset_path.txt
+test_dataset_path.txt
+
+# Model Weights
+*.pt
+*.pth
+*.onnx
+*.pb
+*.weights
+*.mlmodel
+*.torchscript
+*.engine
+
+# Images / Archives
 *.jpg
 *.jpeg
 *.png
@@ -77,53 +105,49 @@ processed_data/
 *.tar
 *.tar.gz
 *.7z
-*.pt
-*.pth
-*.weights
-*.pb
-*.onnx
-*.mlmodel
-*.torchscript
-*.engine
-dataset_path.txt
 
-# Training Outputs and Logs
+# ===============================
+# TRAINING OUTPUTS / LOGS
+# ===============================
 runs/
+outputs/
 wandb/
-logs/
 tensorboard/
 checkpoints/
-outputs/
 results/
+eval/
+predictions/
+metrics/
+core.*
 *.log
 *.json
 *.csv
 *.tsv
-metrics/
-eval/
-predictions/
-*.out
 slurm-*.out
-core.*
 
-# YOLO specific
+# ===============================
+# YOLO / ROBOFLOW SPECIFIC
+# ===============================
 yolov8*/
 yolo*/
-*.pt
-*.yaml
+yolov8n.pt
 !data.yaml
 
-# Test and Coverage
+# ===============================
+# TEST / COVERAGE
+# ===============================
 .pytest_cache/
 .coverage
 coverage.xml
 htmlcov/
 .tox/
 nosetests.xml
-.cache
+.cache/
 .hypothesis/
 
-# Temporary Files
+# ===============================
+# TEMPORARY FILES
+# ===============================
 *.tmp
 *.temp
 *.bak
@@ -134,7 +158,9 @@ nosetests.xml
 .nfs*
 .*.sw?
 
-# Documentation
+# ===============================
+# DOCUMENTATION
+# ===============================
 docs/_build/
 docs/generated/
 _docs/
@@ -143,7 +169,9 @@ site/
 *.docx
 *.pptx
 
-# Experiment Files
+# ===============================
+# EXPERIMENTS / BACKUPS
+# ===============================
 experiments/
 exp*/
 archive/
@@ -151,8 +179,9 @@ old/
 backup/
 debug/
 
-# System and Hidden Files
-.DS_Store
+# ===============================
+# SYSTEM / OS FILES
+# ===============================
 .AppleDouble
 .LSOverride
 [Tt]humbs.db
@@ -160,20 +189,9 @@ debug/
 $RECYCLE.BIN/
 .directory
 
-# Keep empty directories
-!.gitkeep
-!logs/.gitkeep
-!outputs/.gitkeep
-!outputs/models/.gitkeep
-!outputs/plots/.gitkeep
-!outputs/reports/.gitkeep
-
-# Others
-*.secret
-*.key
-config.yaml
-.env
-.cache/
+# ===============================
+# DATABASES / CACHE / KEYS
+# ===============================
 *.db
 *.sqlite
 *.hdf5
@@ -181,3 +199,16 @@ config.yaml
 *.pkl
 *.npy
 *.npz
+*.secret
+*.key
+.cache/
+
+# ===============================
+# KEEP EMPTY DIRECTORIES
+# ===============================
+!.gitkeep
+!logs/.gitkeep
+!outputs/.gitkeep
+!outputs/models/.gitkeep
+!outputs/plots/.gitkeep
+!outputs/reports/.gitkeep

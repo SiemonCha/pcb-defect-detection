@@ -1,0 +1,37 @@
+EVALUATION REPORT
+============================================================
+
+Timestamp: 2025-11-04T19:48:37.895621
+Model: best.pt
+Dataset: /Users/siemoncha/Desktop/CS/pcb-defect-detection/PCB-defects-2/data.yaml
+
+Overall Metrics:
+------------------------------------------------------------
+mAP@0.5:      0.9946
+mAP@0.5:0.95: 0.8315
+Precision:    0.9870
+Recall:       0.9926
+
+Per-Class Performance:
+------------------------------------------------------------
+defect1              | AP@0.5: 0.9950
+defect2              | AP@0.5: 0.9950
+defect3              | AP@0.5: 0.9950
+defect4              | AP@0.5: 0.9950
+defect5              | AP@0.5: 0.9919
+defect6              | AP@0.5: 0.9950
+defect7              | AP@0.5: 0.9950
+
+Inference Speed:
+------------------------------------------------------------
+Preprocess  : 0.9ms
+Inference   : 149.4ms
+Loss        : 0.0ms
+Postprocess : 0.3ms
+Total       : 150.5ms
+
+Performance Assessment:
+------------------------------------------------------------
+✅ PASS: Model meets 85% mAP@0.5 target
+⚠️  WARNING: Inference is 151ms
+   Recommendation: Use YOLOv8n or optimize to ONNX
