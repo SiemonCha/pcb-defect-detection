@@ -8,33 +8,50 @@ Usage:
     python auto_analyze.py
 """
 
-import subprocess
-import sys
-import os
-from pathlib import Path
-from datetime import datetime
 import glob
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable, Optional
 
-def run_script(script_name, description, args=[]):
-    """Run a script and report status"""
+ROOT = Path(__file__).resolve().parent
+SRC_DIR = ROOT / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from evaluation.confusion import main as confusion_main
+from evaluation.evaluate import main as evaluate_main
+from deployment.export_onnx import main as export_onnx_main
+
+
+def _run_callable(func, description: str, args: Optional[Iterable[str]] = None) -> bool:
+    """Execute a module main() function with optional args."""
     print(f"\nRunning: {description}")
-    
     try:
-        result = subprocess.run(
-            [sys.executable, script_name] + args,
-            capture_output=False,  # Show output in real-time
-            text=True
-        )
-        
-        if result.returncode == 0:
-            print(f"✅ {description} completed")
-            return True
+        if args is None:
+            result = func()
         else:
-            print(f"❌ {description} failed")
-            return False
-    except Exception as e:
-        print(f"❌ {description} error: {e}")
+            result = func(args)
+    except SystemExit as exc:
+        success = exc.code == 0
+    except Exception as error:
+        print(f"[ERROR] {description} error: {error}")
         return False
+    else:
+        if result is None or result is True or result == 0:
+            success = True
+        elif isinstance(result, int):
+            success = result == 0
+        else:
+            success = bool(result)
+
+    if success:
+        print(f"[OK] {description} completed")
+        return True
+
+    print(f"[ERROR] {description} failed")
+    return False
 
 def main():
     print("\n" + "="*60)
@@ -55,18 +72,18 @@ def main():
             models_found[name] = max(matches, key=os.path.getmtime)
     
     if not models_found:
-        print("\n❌ No trained models found.")
+        print("\n[ERROR] No trained models found.")
         print("Please train at least one model first:")
-        print("  python train_baseline.py      # Fast (15-30 min)")
-        print("  python train_production.py    # Better accuracy (1-2 hours)")
+        print("  python -m cli train-baseline      # Fast (15-30 min)")
+        print("  python -m cli train-production    # Better accuracy (1-2 hours)")
         return False
     
     # Create logs directory
     log_dir = Path('logs')
     log_dir.mkdir(exist_ok=True)
     
-    print(f"\n📁 All logs will be saved to: {log_dir.absolute()}")
-    print(f"\n🔍 Found {len(models_found)} model(s) to analyze:")
+    print(f"\nAll logs will be saved to: {log_dir.absolute()}")
+    print(f"\nFound {len(models_found)} model(s) to analyze:")
     for name, path in models_found.items():
         print(f"   - {name}: {path}")
     
@@ -85,19 +102,31 @@ def main():
         print("\n" + "-"*60)
         print("PHASE 1: Evaluation")
         print("-"*60)
-        results['evaluate'] = run_script('evaluate.py', f'{model_name} - Model Evaluation', [model_path])
+        results['evaluate'] = _run_callable(
+            evaluate_main,
+            f'{model_name} - Model Evaluation',
+            args=[model_path],
+        )
         
         # Confusion Matrix
         print("\n" + "-"*60)
         print("PHASE 2: Performance Analysis")
         print("-"*60)
-        results['confusion_matrix'] = run_script('confusion_matrix.py', f'{model_name} - Confusion Matrix', [model_path])
+        results['confusion_matrix'] = _run_callable(
+            confusion_main,
+            f'{model_name} - Confusion Matrix',
+            args=[model_path],
+        )
         
         # ONNX Export
         print("\n" + "-"*60)
         print("PHASE 3: Speed Optimization")
         print("-"*60)
-        results['onnx_export'] = run_script('export_onnx.py', f'{model_name} - ONNX Export', [model_path])
+        results['onnx_export'] = _run_callable(
+            export_onnx_main,
+            f'{model_name} - ONNX Export',
+            args=[model_path],
+        )
         
         all_results[model_name] = results
     
@@ -111,7 +140,7 @@ def main():
         total = len(results)
         print(f"\n{model_name.upper()} Model: {passed}/{total} completed")
         for task, success in results.items():
-            status = "✅ PASS" if success else "❌ FAIL"
+            status = "PASS" if success else "FAIL"
             print(f"  {status}: {task}")
     
     total_passed = sum(sum(r.values()) for r in all_results.values())
@@ -120,9 +149,9 @@ def main():
     print(f"\nOverall: {total_passed}/{total_tests} completed successfully")
     
     if total_passed == total_tests:
-        print("\n🎉 All analysis completed successfully!")
+        print("\nAll analysis completed successfully.")
     else:
-        print("\n⚠️  Some analyses failed. Check errors above.")
+        print("\n[WARN] Some analyses failed. Check errors above.")
     
     # Show generated files
     print("\n" + "="*60)
@@ -141,22 +170,22 @@ def main():
             onnx = [f for f in log_files if 'onnx' in f.name or 'benchmark' in f.name]
             
             if evaluations:
-                print("Evaluation Reports:")
+                print("Evaluation reports:")
                 for f in sorted(evaluations, key=lambda x: x.stat().st_mtime, reverse=True):
                     size = f.stat().st_size / 1024
-                    print(f"  📄 {f.name} ({size:.1f} KB)")
+                    print(f"  - {f.name} ({size:.1f} KB)")
             
             if confusion:
-                print("\nPerformance Analysis:")
+                print("\nPerformance analysis:")
                 for f in sorted(confusion, key=lambda x: x.stat().st_mtime, reverse=True):
                     size = f.stat().st_size / 1024
-                    print(f"  📊 {f.name} ({size:.1f} KB)")
+                    print(f"  - {f.name} ({size:.1f} KB)")
             
             if onnx:
-                print("\nONNX Benchmarks:")
+                print("\nONNX benchmarks:")
                 for f in sorted(onnx, key=lambda x: x.stat().st_mtime, reverse=True):
                     size = f.stat().st_size / 1024
-                    print(f"  ⚡ {f.name} ({size:.1f} KB)")
+                    print(f"  - {f.name} ({size:.1f} KB)")
         else:
             print("No log files generated")
     
@@ -165,7 +194,7 @@ def main():
         print("\n" + "="*60)
         print("MODEL COMPARISON")
         print("="*60)
-        print("\n✅ You have BOTH models trained! Great for comparison:")
+        print("\nBoth models are trained. Suggested comparisons:")
         print("\n  Baseline (YOLOv8n):")
         print("    - Faster inference")
         print("    - Smaller model size")
@@ -174,18 +203,18 @@ def main():
         print("    - Higher accuracy")
         print("    - Better for quality-critical applications")
         print("    - Recommended for final submission")
-        print("\n📊 Check logs/ to compare their performance metrics")
+        print("\nReview logs/ to compare their performance metrics")
     
     print("\n" + "="*60)
     print("NEXT STEPS")
     print("="*60)
-    print("1. ✅ Check logs/ directory for all reports")
-    print("2. ✅ Review confusion matrices for both models")
-    print("3. ✅ Compare ONNX speedup improvements")
-    print("4. 🚀 Deploy API: python api.py")
-    print("5. 🧪 Test API: python tests/test_api.py")
+    print("1. Review the logs/ directory for all reports")
+    print("2. Compare confusion matrices for both models")
+    print("3. Review ONNX speed benchmarks")
+    print("4. Deploy API: python -m cli api")
+    print("5. Test API: python tests/test_api.py")
     
-    print("\n📝 For your project report, include:")
+    print("\nFor your project report, include:")
     print("  - All files from logs/ directory")
     print("  - Comparison of baseline vs production (if both available)")
     print("  - Confusion matrix images showing per-class performance")

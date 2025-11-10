@@ -1,4 +1,4 @@
-# PCB Defect Detection - Universal Requirements
+# PCB Defect Detection - Complete Requirements
 # Works on: NVIDIA CUDA, AMD ROCm, Apple Silicon, CPU-only systems
 #
 # Installation:
@@ -56,6 +56,13 @@ seaborn>=0.12.0
 pillow>=10.0.0
 
 # ============================================================
+# Advanced Analysis (NEW)
+# ============================================================
+# For hyperparameter optimization and cross-validation
+optuna>=3.0.0
+scipy>=1.10.0
+
+# ============================================================
 # Development & Testing
 # ============================================================
 pytest>=8.3.0
@@ -88,6 +95,17 @@ py-cpuinfo>=9.0.0
 # IMPORTANT NOTES
 # ============================================================
 # 
+# New in this version:
+# ------------------------------------------------
+# - hyperparameter: Automated tuning (see training.hyperparameter)
+# - cross_validation: Confidence intervals (see training.cross_validation)
+# - analyze_dataset: Statistical tests (see analysis.dataset)
+# 
+# These enable advanced features:
+# - training.hyperparameter
+# - training.cross_validation (confidence intervals)
+# - analysis.dataset (statistical tests)
+#
 # Why PyTorch and ONNX Runtime are not listed here:
 # ------------------------------------------------
 # These packages have platform-specific versions that conflict:
@@ -125,5 +143,15 @@ py-cpuinfo>=9.0.0
 # For CPU-only:
 #   pip install torch torchvision
 #   pip install onnxruntime
+#
+# ============================================================
+# Quick Start
+# ============================================================
+#
+# After installing requirements:
+#   1. python -m cli verify-setup        # Verify installation
+#   2. python -m cli data-download        # Download dataset
+#   3. python -m cli train-baseline       # Train model
+#   4. python -m cli quick-analysis       # Comprehensive analysis
 #
 # ============================================================

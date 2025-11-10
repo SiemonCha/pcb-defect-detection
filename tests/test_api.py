@@ -22,10 +22,10 @@ def test_health(api_url):
     response = requests.get(f"{api_url}/health")
     
     if response.status_code == 200:
-        print("✅ Health check passed")
+        print("[OK] Health check passed")
         print(json.dumps(response.json(), indent=2))
     else:
-        print(f"❌ Health check failed: {response.status_code}")
+        print(f"[ERROR] Health check failed: {response.status_code}")
         print(response.text)
     
     return response.status_code == 200
@@ -39,12 +39,12 @@ def test_model_info(api_url):
     response = requests.get(f"{api_url}/model-info")
     
     if response.status_code == 200:
-        print("✅ Model info retrieved")
+        print("[OK] Model info retrieved")
         data = response.json()
         print(f"\nModel: {data['model_type']}")
         print(f"Classes ({data['num_classes']}): {', '.join(data['class_names'])}")
     else:
-        print(f"❌ Model info failed: {response.status_code}")
+        print(f"[ERROR] Model info failed: {response.status_code}")
         print(response.text)
     
     return response.status_code == 200
@@ -56,7 +56,7 @@ def test_detection(api_url, image_path, conf_threshold=0.25, iou_threshold=0.45)
     print(f"{'='*60}")
     
     if not os.path.exists(image_path):
-        print(f"❌ Image not found: {image_path}")
+        print(f"[ERROR] Image not found: {image_path}")
         return False
     
     print(f"Image: {image_path}")
@@ -79,7 +79,7 @@ def test_detection(api_url, image_path, conf_threshold=0.25, iou_threshold=0.45)
     
     if response.status_code == 200:
         data = response.json()
-        print(f"\n✅ Detection successful")
+        print("\n[OK] Detection successful")
         print(f"   Inference time: {data['inference_time_ms']:.2f}ms")
         print(f"   Image size: {data['image_size']}")
         print(f"   Defects found: {data['count']}")
@@ -93,7 +93,7 @@ def test_detection(api_url, image_path, conf_threshold=0.25, iou_threshold=0.45)
         
         return True
     else:
-        print(f"❌ Detection failed: {response.status_code}")
+        print(f"[ERROR] Detection failed: {response.status_code}")
         print(response.text)
         return False
 
@@ -129,7 +129,7 @@ def main():
     
     # Test health
     if not test_health(args.url):
-        print("\n❌ API is not healthy. Make sure the server is running:")
+        print("\n[ERROR] API is not healthy. Make sure the server is running:")
         print("   python api.py")
         return
     
@@ -144,7 +144,7 @@ def main():
         image_path = find_sample_image()
         
         if not image_path:
-            print("❌ No sample images found. Please specify --image path/to/image.jpg")
+            print("[ERROR] No sample images found. Please specify --image path/to/image.jpg")
             return
         
         print(f"Using sample image: {image_path}")

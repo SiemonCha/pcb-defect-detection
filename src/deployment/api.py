@@ -61,7 +61,7 @@ def find_best_model():
     
     raise FileNotFoundError(
         "No trained model found. Train first:\n"
-        "  python train_baseline.py"
+        "  python -m cli train-baseline"
     )
 
 def load_model(model_path: str):

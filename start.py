@@ -14,13 +14,25 @@ Usage:
     python start.py --api            # Start API after training
 """
 
+import argparse
+import os
 import subprocess
 import sys
-import os
-import argparse
 import time
 from datetime import datetime
 from pathlib import Path
+from glob import glob
+
+ROOT = Path(__file__).resolve().parent
+SRC_DIR = ROOT / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from data import data_download
+from setup import check_dataset
+from training import baseline as baseline_training
+from training import production as production_training
+import auto_analyze
 
 class WorkflowRunner:
     def __init__(self):
@@ -28,42 +40,64 @@ class WorkflowRunner:
         self.steps_completed = []
         self.steps_failed = []
     
-    def run_step(self, script, description, args=[], required=True):
+    def _run_callable(self, func, args):
+        try:
+            if args:
+                result = func(args=args)
+            else:
+                result = func()
+        except SystemExit as exc:
+            success = exc.code == 0
+        except Exception as error:
+            print(f"\nxxxx {func.__name__} error: {error}")
+            return False
+        else:
+            if result is None or result is True or result == 0:
+                success = True
+            elif isinstance(result, int):
+                success = result == 0
+            else:
+                success = bool(result)
+        if success:
+            return True
+        print(f"\nxxxx {func.__name__} failed")
+        return False
+
+    def run_step(self, target, description, args=None, required=True):
         """Run a workflow step"""
         print(f"\n{'='*60}")
         print(f"STEP: {description}")
         print(f"{'='*60}")
-        print(f"Command: python {script} {' '.join(args)}")
-        print()
-        
-        try:
-            result = subprocess.run(
-                [sys.executable, script] + args,
-                capture_output=False,  # Show real-time output
-                text=True
-            )
-            
-            if result.returncode == 0:
-                self.steps_completed.append(description)
-                print(f"\n>>>> {description} completed")
-                return True
-            else:
-                self.steps_failed.append(description)
-                print(f"\nxxxx {description} failed")
-                
-                if required:
-                    print(f"\nCritical step failed. Stopping workflow.")
-                    return False
-                return True
-        
-        except Exception as e:
-            self.steps_failed.append(description)
-            print(f"\nxxxx {description} error: {e}")
-            
-            if required:
-                print(f"\nCritical step failed. Stopping workflow.")
-                return False
+
+        if callable(target):
+            print(f"Executing: {target.__module__}.{target.__name__}")
+            success = self._run_callable(target, args or [])
+        else:
+            cmd_args = args or []
+            print(f"Command: python {target} {' '.join(cmd_args)}\n")
+            try:
+                result = subprocess.run(
+                    [sys.executable, target] + cmd_args,
+                    capture_output=False,
+                    text=True,
+                )
+                success = result.returncode == 0
+            except Exception as error:
+                print(f"\nxxxx {description} error: {error}")
+                success = False
+
+        if success:
+            self.steps_completed.append(description)
+            print(f"\n>>>> {description} completed")
             return True
+
+        self.steps_failed.append(description)
+        print(f"\nxxxx {description} failed")
+        
+        if required:
+            print("\nCritical step failed. Stopping workflow.")
+            return False
+        return True
     
     def print_summary(self):
         """Print workflow summary"""
@@ -79,14 +113,14 @@ class WorkflowRunner:
         print(f"Failed: {len(self.steps_failed)}")
         
         if self.steps_completed:
-            print("\n>>>> Completed Steps:")
+            print("\nCompleted steps:")
             for step in self.steps_completed:
-                print(f"   • {step}")
-        
+                print(f"   - {step}")
+
         if self.steps_failed:
-            print("\nxxxx Failed Steps:")
+            print("\nFailed steps:")
             for step in self.steps_failed:
-                print(f"   • {step}")
+                print(f"   - {step}")
 
 def main():
     parser = argparse.ArgumentParser(description="Complete PCB Detection Workflow")
@@ -123,22 +157,20 @@ def main():
     # Step 2: Download dataset (if needed)
     if not args.skip_download:
         if not os.path.exists('dataset_path.txt'):
-            if not runner.run_step('data_download.py', 'Dataset Download', required=True):
+            if not runner.run_step(data_download.main, 'Dataset Download', required=True):
                 runner.print_summary()
                 sys.exit(1)
         else:
-            print("\n✅ Dataset already downloaded (skip)")
+            print("\nDataset already downloaded (skip)")
             runner.steps_completed.append('Dataset Download (cached)')
     
-    # Step 3: Validate dataset (if script exists)
-    if os.path.exists('scripts/check_dataset.py'):
-        runner.run_step('scripts/check_dataset.py', 'Dataset Validation', required=False)
+    # Step 3: Validate dataset
+    runner.run_step(check_dataset.main, 'Dataset Validation', args=[], required=False)
     
     # Step 4: Train baseline model
     if not args.skip_train:
         # Check if model already exists
-        import glob
-        existing = glob.glob('runs/train/baseline_yolov8n*/weights/best.pt')
+        existing = glob('runs/train/baseline_yolov8n*/weights/best.pt')
         
         if existing and not args.production:
             print(f"\n!!!!  Baseline model already exists: {existing[0]}")
@@ -147,25 +179,25 @@ def main():
                 print("Skipping training (using existing model)")
                 runner.steps_completed.append('Training (using existing)')
             else:
-                if not runner.run_step('train_baseline.py', 'Baseline Training (15-30 min)', required=True):
+                if not runner.run_step(baseline_training.main, 'Baseline Training (15-30 min)', required=True):
                     runner.print_summary()
                     sys.exit(1)
         else:
-            if not runner.run_step('train_baseline.py', 'Baseline Training (15-30 min)', required=True):
+            if not runner.run_step(baseline_training.main, 'Baseline Training (15-30 min)', required=True):
                 runner.print_summary()
                 sys.exit(1)
         
         # Step 5: Train production model (optional)
         if args.production:
-            if not runner.run_step('train_production.py', 'Production Training (1-2 hours)', required=False):
-                print("\n⚠️  Production training failed, but continuing with baseline model...")
+            if not runner.run_step(production_training.main, 'Production Training (1-2 hours)', required=False):
+                print("\nWARN: production training failed, continuing with baseline model")
     else:
-        print("\n>>>> Training skipped (--skip-train)")
+        print("\nTraining skipped (--skip-train)")
         runner.steps_completed.append('Training (skipped)')
     
     # Step 6: Run analysis
-    if not runner.run_step('auto_analyze.py', 'Complete Analysis & Reporting', required=False):
-        print("\n⚠️  Analysis failed, but models are still trained")
+    if not runner.run_step(auto_analyze.main, 'Complete Analysis & Reporting', required=False):
+        print("\nWARN: analysis failed, but models remain available")
     
     # Step 7: Start API (optional)
     if args.api:
@@ -177,7 +209,7 @@ def main():
         print("API docs: http://localhost:8000/docs")
         
         try:
-            subprocess.run([sys.executable, 'api.py'])
+            subprocess.run([sys.executable, '-m', 'cli', 'api'])
         except KeyboardInterrupt:
             print("\n\nAPI server stopped")
     
@@ -191,58 +223,58 @@ def main():
     
     if os.path.exists('logs'):
         log_files = list(Path('logs').glob('*'))
-        print(f"\n>>>> Generated {len(log_files)} log files in logs/")
-        print("   • Evaluation reports")
-        print("   • Confusion matrices")
-        print("   • ONNX benchmarks")
+        print(f"\nGenerated {len(log_files)} log files in logs/")
+        print("   - Evaluation reports")
+        print("   - Confusion matrices")
+        print("   - ONNX benchmarks")
     
     print("\n---- For Your Project Submission:")
-    print("\n1. Collect Results:")
-    print("   • All files from logs/ directory")
-    print("   • Confusion matrix images")
-    print("   • Model performance metrics")
-    print("\n2. Review & Analyze:")
-    print("   • Open confusion matrices to see per-class performance")
-    print("   • Check ONNX speedup in benchmark files")
-    print("   • Review evaluation metrics (mAP, precision, recall)")
-    print("\n3. Write Report Including:")
-    print("   • Model architecture (YOLOv8n baseline)")
-    print("   • Training details (50 epochs, batch size, etc)")
-    print("   • Performance results (from evaluation reports)")
-    print("   • Confusion matrix analysis (strengths/weaknesses)")
-    print("   • ONNX optimization results (speedup achieved)")
-    print("   • Discussion of improvements and future work")
+    print("\n1. Collect results:")
+    print("   - All files from logs/ directory")
+    print("   - Confusion matrix images")
+    print("   - Model performance metrics")
+    print("\n2. Review and analyse:")
+    print("   - Inspect confusion matrices for per-class performance")
+    print("   - Check ONNX speed benchmarks")
+    print("   - Review evaluation metrics (mAP, precision, recall)")
+    print("\n3. Report outline:")
+    print("   - Model architecture (YOLOv8n baseline)")
+    print("   - Training configuration (epochs, batch size, etc.)")
+    print("   - Evaluation metrics summary")
+    print("   - Confusion matrix discussion (strengths/weaknesses)")
+    print("   - ONNX optimisation results")
+    print("   - Recommendations for future work")
     
     if not args.api:
         print("\n---- Optional - Deploy API:")
-        print("   Terminal 1: python api.py")
+        print("   Terminal 1: python -m cli api")
         print("   Terminal 2: python tests/test_api.py")
-        print("   Browser: http://localhost:8000/docs (interactive API docs)")
+        print("   Browser: http://localhost:8000/docs")
     
     print("\n==== Optional - Train Production Model (Better Accuracy):")
-    print("   python train_production.py    # YOLOv8s, 100 epochs, ~1-2 hours")
-    print("   python auto_analyze.py        # Compare with baseline")
+    print("   python -m cli train-production    # YOLOv8s, 100 epochs, ~1-2 hours")
+    print("   python auto_analyze.py                                   # Compare with baseline")
     
     print("\n==== All Your Results:")
-    print(f"   • Logs: {Path('logs').absolute()}")
-    print(f"   • Models: {Path('runs/train').absolute()}")
-    print(f"   • Outputs: {Path('outputs').absolute() if Path('outputs').exists() else 'N/A'}")
+    print(f"   - Logs: {Path('logs').absolute()}")
+    print(f"   - Models: {Path('runs/train').absolute()}")
+    print(f"   - Outputs: {Path('outputs').absolute() if Path('outputs').exists() else 'N/A'}")
     
     if args.production and 'Production Training' in runner.steps_completed:
-        print("\n🎯 Model Comparison Available:")
-        print("   • Baseline (YOLOv8n): Fast inference, good accuracy")
-        print("   • Production (YOLOv8s): Better accuracy, slightly slower")
-        print("   • Compare metrics in logs/ to choose best for your use case")
+        print("\nModel comparison available:")
+        print("   - Baseline (YOLOv8n): fast inference, solid accuracy")
+        print("   - Production (YOLOv8s): higher accuracy, slightly slower")
+        print("   - Review logs to choose the appropriate model")
     
     print("\n" + "="*60)
     print(f"Workflow completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
-    print("\n>>>> Your PCB defect detection system is ready!")
-    print("\n---- Quick Commands:")
+    print("\nSystem ready.")
+    print("\nQuick commands:")
     print("   View logs:    ls -lh logs/")
     print("   View models:  ls -lh runs/train/*/weights/")
-    print("   Start API:    python api.py")
-    print("   Re-analyze:   python auto_analyze.py")
+    print("   Start API:    python -m cli api")
+    print("   Re-run analysis: python auto_analyze.py")
     print()
     
     sys.exit(0 if len(runner.steps_failed) == 0 else 1)

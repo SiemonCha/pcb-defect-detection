@@ -79,20 +79,20 @@ def check_python_version():
     print(f"Detected: Python {py_ver}")
     
     if major != 3:
-        print(f"❌ Error: Python 3.x required, found Python {major}.x")
+        print(f"ERROR: Python 3.x required, found Python {major}.x")
         return False
     
     if minor == 11:
-        print(f"✅ Python 3.11.x - Perfect!")
+        print("Python 3.11.x detected.")
         return True
     elif minor == 12:
-        print(f"⚠️  Python 3.12 detected - should work but 3.11 is recommended")
+        print("Note: Python 3.12 detected. Python 3.11 is recommended but 3.12 should work.")
         return True
     elif minor >= 10:
-        print(f"⚠️  Python 3.{minor} detected - should work but 3.11 is recommended")
+        print(f"Note: Python 3.{minor} detected. Python 3.11 is recommended but this version should work.")
         return True
     else:
-        print(f"❌ Error: Python 3.10+ required, found 3.{minor}")
+        print(f"ERROR: Python 3.10+ required, found 3.{minor}")
         print("\nCreate a new environment:")
         print("  conda create -n pcb311 python=3.11")
         print("  conda activate pcb311")
@@ -199,7 +199,7 @@ def main():
             ]
         
         if not run_command(torch_cmd, "Installing PyTorch"):
-            print("\n❌ Failed to install PyTorch")
+            print("\nERROR: failed to install PyTorch")
             print("\nTry manual installation:")
             print(f"  {' '.join(torch_cmd)}")
             sys.exit(1)
@@ -229,7 +229,7 @@ def main():
                 'onnxruntime-rocm==1.22.2.post1'
             ]
             if not run_command(onnx_cmd, "Installing ONNX Runtime (ROCm)", check=False):
-                print("\n⚠️  ROCm version not available, falling back to CPU version")
+                print("\nWARN: ROCm version not available, falling back to CPU build")
                 onnx_cmd = [sys.executable, '-m', 'pip', 'install', 'onnxruntime']
         
         else:  # apple or cpu
@@ -240,7 +240,7 @@ def main():
             ]
         
         if not run_command(onnx_cmd, "Installing ONNX Runtime"):
-            print("\n❌ Failed to install ONNX Runtime")
+            print("\nERROR: failed to install ONNX Runtime")
             print("\nTry manual installation:")
             print(f"  {' '.join(onnx_cmd)}")
             sys.exit(1)
@@ -312,8 +312,8 @@ def main():
 
     print("\nNext steps:")
     print("  1. Validate environment: python pre_flight_check.py")
-    print("  2. Download dataset:     python data_download.py")
-    print("  3. Train model:          python train_baseline.py")
+    print("  2. Download dataset:     python -m cli data-download")
+    print("  3. Train model:          python -m cli train-baseline")
     print("  4. Analyze results:      python auto_analyze.py")
     print("\nOr run everything at once:")
     print("  python start.py")
@@ -330,8 +330,8 @@ def main():
         print("\n   Option A - Complete Workflow (Easiest):")
         print("   python start.py")
         print("\n   Option B - Step by Step:")
-        print("   python data_download.py       # Download dataset")
-        print("   python train_baseline.py      # Train model (15-30 min)")
+        print("   python -m cli data-download       # Download dataset")
+        print("   python -m cli train-baseline      # Train model (15-30 min)")
         print("   python auto_analyze.py        # Generate reports")
         print("\n   Option C - Quick Test First:")
         print("   python quick_test.py          # 1 min validation")

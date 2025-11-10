@@ -154,7 +154,7 @@ for pattern in model_patterns:
 if found_models:
     result.add_warn(f"Found {len(found_models)} existing trained model(s)")
     for m in found_models[:3]:  # Show first 3
-        print(f"   → {m}")
+        print(f"   - {m}")
     result.add_warn("Training will create new model in separate directory")
 
 # 7. Check Write Permissions
@@ -202,11 +202,11 @@ if result.is_ready():
     print("\n==== WHAT TO RUN NEXT - Choose ONE option:\n")
     print("Option A - Complete Workflow (Recommended):")
     print("  python start.py")
-    print("  → Runs everything automatically (25-45 min)")
-    print("  → Downloads dataset, trains, analyzes, generates reports")
+    print("  - Runs everything automatically (25-45 min)")
+    print("  - Downloads dataset, trains, analyzes, generates reports")
     print("\nOption B - Step by Step:")
-    print("  python data_download.py       # 1. Download dataset (2-5 min)")
-    print("  python train_baseline.py      # 2. Train model (15-30 min)")
+    print("  python -m cli data-download       # 1. Download dataset (2-5 min)")
+    print("  python -m cli train-baseline      # 2. Train model (15-30 min)")
     print("  python auto_analyze.py        # 3. Generate reports (5 min)")
     print("\nOption C - Quick Test First:")
     print("  python quick_test.py          # 1. Quick validation (1 min)")

@@ -14,6 +14,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent
+SRC_DIR = ROOT / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
 class TestLogger:
     def __init__(self, log_file='test_results.log'):
         self.log_file = log_file
@@ -55,9 +60,9 @@ def check_dependencies():
                 __import__('PIL')
             else:
                 __import__(pkg)
-            logger.log(f"✅ {pkg} installed", 'SUCCESS')
+            logger.log(f"[OK] {pkg} installed", 'SUCCESS')
         except ImportError:
-            logger.log(f"❌ {pkg} missing", 'ERROR')
+            logger.log(f"[MISSING] {pkg} not installed", 'ERROR')
             missing.append(pkg)
     
     if missing:
@@ -77,18 +82,18 @@ def check_gpu():
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
             if torch.version.hip:
-                logger.log(f"✅ AMD GPU detected: {device_name}", 'SUCCESS')
+                logger.log(f"[OK] AMD GPU detected: {device_name}", 'SUCCESS')
             else:
                 memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                logger.log(f"✅ NVIDIA GPU detected: {device_name} ({memory:.1f}GB)", 'SUCCESS')
+                logger.log(f"[OK] NVIDIA GPU detected: {device_name} ({memory:.1f}GB)", 'SUCCESS')
         elif torch.backends.mps.is_available():
-            logger.log(f"✅ Apple Silicon detected", 'SUCCESS')
+            logger.log("[OK] Apple Silicon detected", 'SUCCESS')
         else:
-            logger.log(f"⚠️  No GPU detected, using CPU", 'WARNING')
+            logger.log("[WARN] No GPU detected, using CPU", 'WARNING')
         
         return True
     except Exception as e:
-        logger.log(f"❌ GPU check failed: {e}", 'ERROR')
+        logger.log(f"[ERROR] GPU check failed: {e}", 'ERROR')
         return False
 
 def check_dataset():
@@ -101,10 +106,10 @@ def check_dataset():
         data_yaml = os.path.join(dataset_path, 'data.yaml')
         
         if os.path.exists(data_yaml):
-            logger.log(f"✅ Dataset found: {data_yaml}", 'SUCCESS')
+            logger.log(f"[OK] Dataset found: {data_yaml}", 'SUCCESS')
             return True
     
-    logger.log(f"❌ Dataset not found. Run: python data_download.py", 'ERROR')
+    logger.log("[ERROR] Dataset not found. Run: python -m cli data-download", 'ERROR')
     return False
 
 def check_trained_model():
@@ -121,22 +126,30 @@ def check_trained_model():
         matches = glob.glob(pattern)
         if matches:
             model_path = max(matches, key=os.path.getmtime)
-            logger.log(f"✅ Trained model found: {model_path}", 'SUCCESS')
+            logger.log(f"[OK] Trained model found: {model_path}", 'SUCCESS')
             return True
     
-    logger.log(f"❌ No trained model found. Run: python train_baseline.py", 'ERROR')
+    logger.log("[ERROR] No trained model found. Run: python -m cli train-baseline", 'ERROR')
     return False
 
-def test_script(script_name, description, args=[], cwd=None):
-    """Test a script by running it"""
+def test_script(command, description, args=None, cwd=None, cli=False):
+    """Test a command by running it"""
     logger.log(f"\nTesting: {description}")
-    logger.log(f"Running: python {script_name} {' '.join(args)}")
+    args = args or []
+    if cli:
+        display = f"python -m cli {command} {' '.join(args)}"
+        cmd = [sys.executable, "-m", "cli", command] + args
+    else:
+        display = f"python {command} {' '.join(args)}"
+        cmd = [sys.executable, command] + args
+
+    logger.log(f"Running: {display}")
     
     start_time = time.time()
     
     try:
         result = subprocess.run(
-            [sys.executable, script_name] + args,
+            cmd,
             capture_output=True,
             text=True,
             timeout=300,  # 5 min timeout
@@ -146,7 +159,7 @@ def test_script(script_name, description, args=[], cwd=None):
         elapsed = time.time() - start_time
         
         if result.returncode == 0:
-            logger.log(f"✅ {description} completed in {elapsed:.1f}s", 'SUCCESS')
+            logger.log(f"[OK] {description} completed in {elapsed:.1f}s", 'SUCCESS')
             if result.stdout:
                 # Log last few lines of output
                 lines = result.stdout.strip().split('\n')
@@ -155,14 +168,14 @@ def test_script(script_name, description, args=[], cwd=None):
                         logger.log(f"   {line}", 'INFO')
             return True
         else:
-            logger.log(f"❌ {description} failed: {result.stderr[:200]}", 'ERROR')
+            logger.log(f"[ERROR] {description} failed: {result.stderr[:200]}", 'ERROR')
             return False
             
     except subprocess.TimeoutExpired:
-        logger.log(f"❌ {description} timed out (>5min)", 'ERROR')
+        logger.log(f"[ERROR] {description} timed out (>5min)", 'ERROR')
         return False
     except Exception as e:
-        logger.log(f"❌ {description} error: {str(e)}", 'ERROR')
+        logger.log(f"[ERROR] {description} error: {str(e)}", 'ERROR')
         return False
 
 def main():
@@ -184,7 +197,7 @@ def main():
     has_model = check_trained_model()
     
     if not checks_passed:
-        logger.log("\n❌ Environment checks failed. Fix issues above.", 'ERROR')
+        logger.log("\n[ERROR] Environment checks failed. Fix issues above.", 'ERROR')
         logger.save()
         return False
     
@@ -193,55 +206,51 @@ def main():
         logger.log("\n### PHASE 2: Core Functionality Tests ###")
         
         # Test evaluation
-        test_script('evaluate.py', 'Model Evaluation')
-        
+        test_script('evaluate', 'Model Evaluation', cli=True)
+
         # Test confusion matrix
-        test_script('confusion_matrix.py', 'Confusion Matrix Analysis')
+        test_script('confusion', 'Confusion Matrix Analysis', cli=True)
         
         # Test ONNX export
-        test_script('export_onnx.py', 'ONNX Export')
+        test_script('export-onnx', 'ONNX Export', cli=True)
         
         # Test GPU detection script (in tests folder)
         test_script('tests/test_gpu.py', 'GPU Detection')
     else:
-        logger.log("\n⚠️  Skipping functionality tests (no trained model)", 'WARNING')
-        logger.log("   Run 'python train_baseline.py' first", 'INFO')
+        logger.log("\n[WARN] Skipping functionality tests (no trained model)", 'WARNING')
+        logger.log("   Run 'python -m cli train-baseline' first", 'INFO')
     
     # Phase 3: File checks
     logger.log("\n### PHASE 3: Output File Checks ###")
     
     expected_files = [
-        'export_onnx.py',
-        'confusion_matrix.py',
-        'api.py',
-        'test_api.py',
-        'transfer_learning.py',
+        'tests/test_api.py',
     ]
     
     for file in expected_files:
         if os.path.exists(file):
             size = os.path.getsize(file) / 1024
-            logger.log(f"✅ {file} exists ({size:.1f} KB)", 'SUCCESS')
+            logger.log(f"[OK] {file} exists ({size:.1f} KB)", 'SUCCESS')
         else:
-            logger.log(f"❌ {file} missing", 'ERROR')
+            logger.log(f"[ERROR] {file} missing", 'ERROR')
     
     # Summary
     logger.log("\n### TEST SUMMARY ###")
     
-    success_count = len([r for r in logger.results if '✅' in r])
-    error_count = len([r for r in logger.results if '❌' in r])
-    warning_count = len([r for r in logger.results if '⚠️' in r])
+    success_count = len([r for r in logger.results if '[OK]' in r])
+    error_count = len([r for r in logger.results if '[ERROR]' in r])
+    warning_count = len([r for r in logger.results if '[WARN]' in r])
     
     logger.log(f"Passed: {success_count}")
     logger.log(f"Failed: {error_count}")
     logger.log(f"Warnings: {warning_count}")
     
     if error_count == 0:
-        logger.log("\n🎉 All tests passed! Project ready for submission.", 'SUCCESS')
+        logger.log("\n[OK] All tests passed! Project ready for submission.", 'SUCCESS')
     elif has_model and error_count <= 2:
-        logger.log("\n✅ Core functionality working. Minor issues detected.", 'SUCCESS')
+        logger.log("\n[OK] Core functionality working. Minor issues detected.", 'SUCCESS')
     else:
-        logger.log("\n⚠️  Some tests failed. Review errors above.", 'WARNING')
+        logger.log("\n[WARN] Some tests failed. Review errors above.", 'WARNING')
     
     logger.save()
     return error_count == 0
