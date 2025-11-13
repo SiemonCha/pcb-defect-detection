@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from ultralytics import YOLO
+from data import resolve_dataset_yaml
 
 
 def find_best_model() -> str:
@@ -32,32 +33,21 @@ def find_best_model() -> str:
     raise FileNotFoundError("No trained model found. Run: python -m cli train-baseline")
 
 
-def find_data_yaml() -> str:
-    """Locate data.yaml describing the dataset."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_path = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_path) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
-
-    patterns = ["data/*/data.yaml", "data/data.yaml"]
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found. Run: python -m cli data-download")
+def find_data_yaml() -> Path:
+    """Locate data.yaml describing the dataset using config fallbacks."""
+    return resolve_dataset_yaml()
 
 
-def parse_yolo_label(label_path: str, img_shape: Tuple[int, int, int]) -> List[Dict]:
+def parse_yolo_label(label_path: Path, img_shape: Tuple[int, int, int]) -> List[Dict]:
     """Parse YOLO format labels to bounding boxes."""
+    label_path = Path(label_path)
     height, width = img_shape[:2]
     boxes = []
 
-    if not os.path.exists(label_path):
+    if not label_path.exists():
         return boxes
 
-    with open(label_path, "r") as file:
+    with label_path.open("r", encoding="utf-8") as file:
         for line in file:
             parts = line.strip().split()
             if len(parts) < 5:
@@ -132,7 +122,7 @@ def analyze_prediction(
 
 
 def visualize_failure(
-    img_path: str,
+    img_path: str | Path,
     pred_boxes: List[Dict],
     gt_boxes: List[Dict],
     failure_type: str,
@@ -140,7 +130,8 @@ def visualize_failure(
     save_path: Path,
 ) -> bool:
     """Create side-by-side visualization for a failure case."""
-    image = cv2.imread(img_path)
+    img_path = Path(img_path)
+    image = cv2.imread(str(img_path))
     if image is None:
         return False
 
@@ -209,21 +200,23 @@ def main(args: argparse.Namespace | None = None):
     print(f"Dataset: {data_yaml}")
 
     model = YOLO(model_path)
-    with open(data_yaml, "r") as file:
+    with open(data_yaml, "r", encoding="utf-8") as file:
         data_config = yaml.safe_load(file)
 
-    class_names = data_config["names"]
-    dataset_root = os.path.dirname(data_yaml)
-    test_img_dir = os.path.join(dataset_root, "test", "images")
-    test_label_dir = os.path.join(dataset_root, "test", "labels")
+    raw_names = data_config["names"]
+    if isinstance(raw_names, dict):
+        class_names = [raw_names[k] for k in sorted(raw_names)]
+    else:
+        class_names = list(raw_names)
+    dataset_root = data_yaml.parent
+    test_img_dir = dataset_root / "test" / "images"
+    test_label_dir = dataset_root / "test" / "labels"
 
-    if not os.path.exists(test_img_dir):
+    if not test_img_dir.exists():
         print(f"xxxx Test images not found: {test_img_dir}")
         return
 
-    test_images = glob.glob(os.path.join(test_img_dir, "*.jpg")) + glob.glob(
-        os.path.join(test_img_dir, "*.png")
-    )
+    test_images = sorted(test_img_dir.glob("*.jpg")) + sorted(test_img_dir.glob("*.png"))
 
     print(f"\n>>>> Found {len(test_images)} test images")
     print(">>>> Analyzing failures...")
@@ -235,15 +228,15 @@ def main(args: argparse.Namespace | None = None):
     }
 
     for img_path in test_images:
-        img_name = os.path.splitext(os.path.basename(img_path))[0]
-        label_path = os.path.join(test_label_dir, f"{img_name}.txt")
+        img_name = img_path.stem
+        label_path = test_label_dir / f"{img_name}.txt"
 
-        image = cv2.imread(img_path)
+        image = cv2.imread(str(img_path))
         if image is None:
             continue
         gt_boxes = parse_yolo_label(label_path, image.shape)
 
-        results = model.predict(img_path, conf=0.25, iou=0.45, verbose=False)
+        results = model.predict(str(img_path), conf=0.25, iou=0.45, verbose=False)
         pred_boxes: List[Dict] = []
 
         if results[0].boxes is not None and len(results[0].boxes) > 0:
@@ -265,17 +258,17 @@ def main(args: argparse.Namespace | None = None):
         if fps:
             failures["false_positives"].append(
                 {
-                    "img_path": img_path,
+                    "img_path": str(img_path),
                     "pred_boxes": fps,
                     "gt_boxes": gt_boxes,
-                    "count": len(fps),
+                    "failure_type": "False Positive",
                 }
             )
 
         if fns:
             failures["false_negatives"].append(
                 {
-                    "img_path": img_path,
+                    "img_path": str(img_path),
                     "pred_boxes": pred_boxes,
                     "gt_boxes": fns,
                     "count": len(fns),
@@ -286,7 +279,7 @@ def main(args: argparse.Namespace | None = None):
             if tp["iou"] < 0.7:
                 failures["low_iou"].append(
                     {
-                        "img_path": img_path,
+                        "img_path": str(img_path),
                         "pred_boxes": [tp["pred"]],
                         "gt_boxes": [tp["gt"]],
                         "iou": tp["iou"],

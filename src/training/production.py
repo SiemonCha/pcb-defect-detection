@@ -13,6 +13,7 @@ import logging
 import os
 import platform
 import time
+from datetime import datetime
 
 os.environ.setdefault("ULTRALYTICS_MINIMAL", "True")
 os.environ.setdefault("TQDM_DISABLE", "1")
@@ -25,6 +26,15 @@ except ImportError:
     LOGGER = logging.getLogger("ultralytics")
 
 LOGGER.setLevel(logging.ERROR)
+
+from config import load_config
+from data import resolve_dataset_yaml
+from tracking import configure_wandb, finish_wandb_run
+
+CONFIG = load_config()
+DATA_CFG = CONFIG.get("data", {})
+PRODUCTION_CFG = CONFIG.get("training", {}).get("production", {})
+TRACKING_CFG = CONFIG.get("tracking", {})
 
 
 def get_device_info() -> Tuple[str, bool]:
@@ -50,26 +60,9 @@ def get_device_info() -> Tuple[str, bool]:
     return device, False
 
 
-def find_data_yaml() -> str:
+def find_data_yaml() -> Path:
     """Locate the project data.yaml describing the dataset."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_path = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_path) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
-
-    patterns = [
-        "data/*/data.yaml",
-        "data/data.yaml",
-    ]
-
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-
-    raise FileNotFoundError("data.yaml not found. Run: python -m cli data-download")
+    return resolve_dataset_yaml()
 
 
 def _register_epoch_logger(model: YOLO, total_epochs: int) -> None:
@@ -133,31 +126,54 @@ def _register_interval_logger(model: YOLO, total_epochs: int, interval_secs: int
 
 def train_production(
     *,
-    epochs: int = 100,
-    imgsz: int = 640,
-    batch: Optional[int] = None,
-    patience: int = 15,
+    epochs: int = PRODUCTION_CFG.get("epochs", 100),
+    imgsz: int = PRODUCTION_CFG.get("imgsz", 640),
+    batch: int = PRODUCTION_CFG.get("batch", 16),
+    patience: int = PRODUCTION_CFG.get("patience", 15),
     model_path: str = "yolov8s.pt",
     project: str = "runs/train",
     name: str = "production_yolov8s",
 ):
-    """Train the YOLOv8s production model."""
+    """Train the YOLOv8s production-tuned model."""
     device, is_rocm = get_device_info()
-    data_yaml = find_data_yaml()
-    print(f"==== Using dataset: {data_yaml}")
+    data_yaml_path = find_data_yaml()
+    print(f"==== Using dataset: {data_yaml_path}")
+
+    tracking_run = None
+    tracking_enabled = bool(TRACKING_CFG.get("enabled"))
+    if tracking_enabled:
+        prefix = TRACKING_CFG.get("run_name_prefix", "pcbdd")
+        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        run_name = f"{prefix}-production-{timestamp}"
+        tracking_run = configure_wandb(
+            TRACKING_CFG,
+            run_name,
+            config={
+                "epochs": epochs,
+                "imgsz": imgsz,
+                "batch": batch,
+                "patience": patience,
+                "model_path": model_path,
+                "dataset": str(data_yaml_path),
+            },
+            tags=["production"],
+        )
+
+    print("==== Training configuration ====")
+    print(f"epochs={epochs} | imgsz={imgsz} | batch={batch} | patience={patience}")
+    print(f"tracking={'enabled' if tracking_enabled else 'disabled'} | project={project} | name={name}")
 
     print("==== Loading YOLOv8s...")
     model = YOLO(model_path)
     _register_epoch_logger(model, epochs)
     _register_interval_logger(model, epochs)
 
-    print("==== Starting production training...")
-    effective_batch = batch if batch is not None else (16 if device == "cuda" else 8)
+    print("==== Starting training...")
     results = model.train(
-        data=data_yaml,
+        data=str(data_yaml_path),
         epochs=epochs,
         imgsz=imgsz,
-        batch=effective_batch,
+        batch=batch,
         device=device,
         project=project,
         name=name,
@@ -190,9 +206,27 @@ def train_production(
         cos_lr=True,
     )
 
-    print("\n>>>> Production training complete!")
+    if tracking_run is not None:
+        summary = {}
+        if hasattr(results, "results_dict"):
+            summary = getattr(results, "results_dict") or {}
+        elif isinstance(results, dict):
+            summary = results
+        if summary:
+            try:
+                tracking_run.log(summary)
+            except Exception as exc:  # pragma: no cover
+                print(f"[WARN] Failed to log summary metrics to W&B: {exc}")
+        finish_wandb_run(tracking_run)
+
+    print("\n>>>> Training complete!")
     print(f">>>> Results: {project}/{name}")
     print(f">>>> Best: {project}/{name}/weights/best.pt")
+    if summary := getattr(results, "results_dict", None):
+        print(">>>> Key metrics:")
+        for key in ("metrics/mAP50", "metrics/mAP50-95", "metrics/precision", "metrics/recall"):
+            if key in summary:
+                print(f"     {key}: {summary[key]:.4f}")
     print("\n>>>> Next step: python -m cli evaluate")
     return results
 
@@ -200,10 +234,10 @@ def train_production(
 def main(args: Optional[Iterable[str]] = None):
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Train the YOLOv8s production model")
-    parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--epochs", type=int, default=PRODUCTION_CFG.get("epochs", 100))
+    parser.add_argument("--imgsz", type=int, default=PRODUCTION_CFG.get("imgsz", 640))
     parser.add_argument("--batch", type=int, default=None, help="Override batch size")
-    parser.add_argument("--patience", type=int, default=15)
+    parser.add_argument("--patience", type=int, default=PRODUCTION_CFG.get("patience", 15))
     parser.add_argument("--model", type=str, default="yolov8s.pt")
     parser.add_argument("--project", type=str, default="runs/train")
     parser.add_argument("--name", type=str, default="production_yolov8s")

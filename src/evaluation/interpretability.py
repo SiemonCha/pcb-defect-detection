@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use("Agg", force=True)
 import torch
 import torch.nn.functional as F
+from data import resolve_dataset_yaml
 
 
 def find_best_model() -> str:
@@ -34,21 +35,9 @@ def find_best_model() -> str:
     raise FileNotFoundError("No trained model found. Run: python -m cli train-baseline")
 
 
-def find_data_yaml() -> str:
+def find_data_yaml() -> Path:
     """Locate data.yaml describing the dataset."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_path = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_path) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
-
-    patterns = ["data/*/data.yaml", "data/data.yaml"]
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found. Run: python -m cli data-download")
+    return resolve_dataset_yaml()
 
 
 def generate_heatmap(model: YOLO, image: np.ndarray) -> np.ndarray:
@@ -80,18 +69,19 @@ def apply_overlay(image: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) ->
 
 
 def visualize_prediction(
-    image_path: str,
+    image_path: str | Path,
     model: YOLO,
     class_names: Iterable[str],
     save_path: Path,
 ) -> bool:
     """Create interpretability visualization for a single image."""
-    image = cv2.imread(image_path)
+    image_path = Path(image_path)
+    image = cv2.imread(str(image_path))
     if image is None:
         return False
 
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = model.predict(image_path, conf=0.25, verbose=False)
+    results = model.predict(str(image_path), conf=0.25, verbose=False)
     heatmap = generate_heatmap(model, image_rgb)
     overlay = apply_overlay(image_rgb, heatmap)
 
@@ -138,11 +128,11 @@ def visualize_prediction(
     return True
 
 
-def analyze_confidence_distribution(model: YOLO, image_paths: List[str]) -> np.ndarray:
+def analyze_confidence_distribution(model: YOLO, image_paths: List[str | Path]) -> np.ndarray:
     """Gather confidence scores from model predictions."""
     confidences: List[float] = []
     for image_path in image_paths[:100]:
-        results = model.predict(image_path, conf=0.01, verbose=False)
+        results = model.predict(str(image_path), conf=0.01, verbose=False)
         if results[0].boxes is not None:
             confidences.extend(results[0].boxes.conf.cpu().numpy())
     return np.array(confidences)
@@ -165,32 +155,35 @@ def main(args: argparse.Namespace | None = None):
     print(f"Dataset: {data_yaml}")
 
     model = YOLO(model_path)
-    with open(data_yaml, "r") as file:
+    with open(data_yaml, "r", encoding="utf-8") as file:
         data_config = yaml.safe_load(file)
 
-    class_names = data_config["names"]
-    dataset_root = os.path.dirname(data_yaml)
-    test_img_dir = os.path.join(dataset_root, "test", "images")
+    raw_names = data_config["names"]
+    if isinstance(raw_names, dict):
+        class_names = [raw_names[k] for k in sorted(raw_names)]
+    else:
+        class_names = list(raw_names)
+    dataset_root = data_yaml.parent
+    test_img_dir = dataset_root / "test" / "images"
 
-    if not os.path.exists(test_img_dir):
+    if not test_img_dir.exists():
         print(f"xxxx Test images not found: {test_img_dir}")
         return
 
-    test_images = glob.glob(os.path.join(test_img_dir, "*.jpg")) + glob.glob(
-        os.path.join(test_img_dir, "*.png")
-    )
+    test_images = sorted(test_img_dir.glob("*.jpg")) + sorted(test_img_dir.glob("*.png"))
 
     print(f"\n>>>> Found {len(test_images)} test images")
     output_dir = Path("logs/interpretability")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if parsed_args.image:
-        images_to_visualize = [parsed_args.image]
+        images_to_visualize = [Path(parsed_args.image)]
     else:
         import random
 
         random.seed(42)
-        images_to_visualize = random.sample(test_images, min(parsed_args.samples, len(test_images)))
+        population = test_images
+        images_to_visualize = random.sample(population, min(parsed_args.samples, len(population)))
 
     print(f">>>> Visualizing {len(images_to_visualize)} images...")
     visualized = 0

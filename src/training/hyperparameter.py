@@ -19,22 +19,12 @@ import glob
 import argparse
 from pathlib import Path
 import yaml
+from data import resolve_dataset_yaml
 
-def find_data_yaml():
-    if os.path.exists('dataset_path.txt'):
-        with open('dataset_path.txt', 'r') as f:
-            dataset_path = f.read().strip()
-        data_yaml = os.path.join(dataset_path, 'data.yaml')
-        if os.path.exists(data_yaml):
-            return data_yaml
-    patterns = ['data/*/data.yaml', 'data/data.yaml']
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found")
+def find_data_yaml() -> Path:
+    return resolve_dataset_yaml()
 
-def objective(trial, data_yaml, device, epochs=30):
+def objective(trial, data_yaml: Path, device, epochs=30):
     """Optuna objective function"""
     
     # Hyperparameters to optimize
@@ -68,7 +58,7 @@ def objective(trial, data_yaml, device, epochs=30):
         model = YOLO('yolov8n.pt')
         
         results = model.train(
-            data=data_yaml,
+            data=str(data_yaml),
             epochs=epochs,
             imgsz=640,
             batch=batch,

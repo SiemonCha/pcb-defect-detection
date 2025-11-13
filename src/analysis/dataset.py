@@ -17,23 +17,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
+from data import resolve_dataset_yaml
 
-def find_data_yaml() -> str:
-    """Locate data.yaml describing the dataset."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_path = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_path) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
 
-    patterns = ["data/*/data.yaml", "data/data.yaml"]
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-
-    raise FileNotFoundError("data.yaml not found. Run: python -m cli data-download")
+def find_data_yaml() -> Path:
+    """Locate data.yaml describing the dataset using config + fallbacks."""
+    return resolve_dataset_yaml()
 
 
 def analyze_split(label_dir: str, split_name: str) -> Optional[Dict]:
@@ -107,13 +96,17 @@ def main():
     print("=" * 60)
 
     data_yaml = find_data_yaml()
-    dataset_root = os.path.dirname(data_yaml)
+    dataset_root = data_yaml.parent
 
-    with open(data_yaml, "r") as file:
+    with open(data_yaml, "r", encoding="utf-8") as file:
         data_config = yaml.safe_load(file)
 
-    class_names = data_config["names"]
-    num_classes = data_config["nc"]
+    class_names_raw = data_config["names"]
+    if isinstance(class_names_raw, dict):
+        class_names = [class_names_raw[k] for k in sorted(class_names_raw)]
+    else:
+        class_names = list(class_names_raw)
+    num_classes = data_config.get("nc", len(class_names))
 
     print(f"\nDataset: {data_yaml}")
     print(f"Classes ({num_classes}): {class_names}")

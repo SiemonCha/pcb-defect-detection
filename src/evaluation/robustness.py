@@ -28,6 +28,7 @@ import glob
 import argparse
 from pathlib import Path
 import yaml
+from data import resolve_dataset_yaml
 
 def find_best_model():
     patterns = [
@@ -40,19 +41,8 @@ def find_best_model():
             return max(matches, key=os.path.getmtime)
     raise FileNotFoundError("No trained model found")
 
-def find_data_yaml():
-    if os.path.exists('dataset_path.txt'):
-        with open('dataset_path.txt', 'r') as f:
-            dataset_path = f.read().strip()
-        data_yaml = os.path.join(dataset_path, 'data.yaml')
-        if os.path.exists(data_yaml):
-            return data_yaml
-    patterns = ['data/*/data.yaml', 'data/data.yaml']
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found")
+def find_data_yaml() -> Path:
+    return resolve_dataset_yaml()
 
 # Corruption functions
 def add_gaussian_noise(img, mean=0, std=25):
@@ -139,14 +129,15 @@ CORRUPTIONS = {
 
 def test_corruption(model, img_path, corruption_name, corruption_fn):
     """Test model on corrupted image"""
+    img_path = Path(img_path)
     # Load image
-    img = cv2.imread(img_path)
+    img = cv2.imread(str(img_path))
     if img is None:
         return None
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
     # Get baseline predictions
-    results_clean = model.predict(img_path, conf=0.25, verbose=False)
+    results_clean = model.predict(str(img_path), conf=0.25, verbose=False)
     clean_count = len(results_clean[0].boxes) if results_clean[0].boxes is not None else 0
     clean_conf = float(np.mean(results_clean[0].boxes.conf.cpu().numpy())) if clean_count > 0 else 0
     
@@ -196,14 +187,14 @@ def main():
     model = YOLO(model_path)
     
     # Get test images
-    with open(data_yaml, 'r') as f:
+    with data_yaml.open('r', encoding='utf-8') as f:
         data_config = yaml.safe_load(f)
     
-    dataset_root = os.path.dirname(data_yaml)
-    test_img_dir = os.path.join(dataset_root, 'test', 'images')
+    dataset_root = data_yaml.parent
+    test_img_dir = dataset_root / 'test' / 'images'
     
-    test_images = glob.glob(os.path.join(test_img_dir, '*.jpg')) + \
-                  glob.glob(os.path.join(test_img_dir, '*.png'))
+    test_images = sorted(test_img_dir.glob('*.jpg')) + \
+                  sorted(test_img_dir.glob('*.png'))
     
     if not test_images:
         print(f"xxxx No test images found")

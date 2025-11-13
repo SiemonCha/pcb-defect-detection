@@ -21,6 +21,7 @@ import argparse
 import numpy as np
 from pathlib import Path
 import yaml
+from data import resolve_dataset_yaml
 
 def find_best_model():
     patterns = [
@@ -33,19 +34,8 @@ def find_best_model():
             return max(matches, key=os.path.getmtime)
     raise FileNotFoundError("No trained model found")
 
-def find_data_yaml():
-    if os.path.exists('dataset_path.txt'):
-        with open('dataset_path.txt', 'r') as f:
-            dataset_path = f.read().strip()
-        data_yaml = os.path.join(dataset_path, 'data.yaml')
-        if os.path.exists(data_yaml):
-            return data_yaml
-    patterns = ['data/*/data.yaml', 'data/data.yaml']
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found")
+def find_data_yaml() -> Path:
+    return resolve_dataset_yaml()
 
 def benchmark_model(model_path, num_runs=100):
     """Benchmark inference speed"""
@@ -201,32 +191,35 @@ def main():
     # Setup
     model_path = args.model or find_best_model()
     data_yaml = find_data_yaml()
-    
+
     print(f"{'='*60}")
     print("INT8 QUANTIZATION FOR PRODUCTION")
     print(f"{'='*60}")
     print(f"Model: {model_path}")
     print(f"Dataset: {data_yaml}")
     print(f"Target format: {args.format}")
-    
+
     # Get calibration data
-    with open(data_yaml, 'r') as f:
+    with data_yaml.open('r', encoding='utf-8') as f:
         data_config = yaml.safe_load(f)
-    
-    class_names = data_config['names']
-    dataset_root = os.path.dirname(data_yaml)
-    test_img_dir = os.path.join(dataset_root, 'test', 'images')
-    
-    test_images = glob.glob(os.path.join(test_img_dir, '*.jpg')) + \
-                  glob.glob(os.path.join(test_img_dir, '*.png'))
-    
+
+    raw_names = data_config['names']
+    if isinstance(raw_names, dict):
+        class_names = [raw_names[k] for k in sorted(raw_names)]
+    else:
+        class_names = list(raw_names)
+    dataset_root = data_yaml.parent
+    test_img_dir = dataset_root / 'test' / 'images'
+
+    test_images = sorted(test_img_dir.glob('*.jpg')) + sorted(test_img_dir.glob('*.png'))
+
     if not test_images:
         print(f"xxxx No test images found")
         return
-    
-    calibration_images = test_images[:args.calibration_samples]
+
+    calibration_images = [str(path) for path in test_images[:args.calibration_samples]]
     print(f">>>> Using {len(calibration_images)} images for calibration")
-    
+
     # Create output directory
     output_dir = Path(model_path).parent
     
@@ -293,7 +286,7 @@ def main():
     print(f"  Size reduction: {(1 - quant_size/orig_size)*100:.1f}%")
     
     # Validate accuracy
-    validate_quantized_model(model_path, final_path, test_images, class_names)
+    validate_quantized_model(model_path, final_path, [str(p) for p in test_images], class_names)
     
     # Save report
     report_dir = Path('logs')

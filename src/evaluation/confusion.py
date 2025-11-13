@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from ultralytics import YOLO
+import yaml
+
+from data import resolve_dataset_yaml
 
 
 def find_best_model() -> str:
@@ -31,35 +34,29 @@ def find_best_model() -> str:
     raise FileNotFoundError("No trained model found. Train a baseline or production model first.")
 
 
-def find_data_yaml() -> str:
+def find_data_yaml() -> Path:
     """Locate the dataset configuration file."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_path = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_path) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
-
-    patterns = ["data/*/data.yaml", "data/data.yaml"]
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-
-    raise FileNotFoundError("data.yaml not found. Run: python -m cli data-download")
+    return resolve_dataset_yaml()
 
 
 def plot_confusion_matrix(matrix: np.ndarray, class_names: list[str], save_path: Path) -> None:
     """Render and persist the confusion matrix heatmap."""
     plt.figure(figsize=(12, 10))
     matrix_norm = matrix.astype(float) / (matrix.sum(axis=1)[:, np.newaxis] + 1e-6)
+    ylabels = class_names
+    xlabels = class_names
+    if matrix_norm.shape[0] > len(class_names):
+        ylabels = class_names + ["Background"]
+    if matrix_norm.shape[1] > len(class_names):
+        xlabels = class_names + ["Background"]
+
     sns.heatmap(
         matrix_norm,
         annot=True,
         fmt=".2f",
         cmap="Blues",
-        xticklabels=class_names + ["Background"],
-        yticklabels=class_names + ["Background"],
+        xticklabels=xlabels,
+        yticklabels=ylabels,
         cbar_kws={"label": "Normalised Count"},
     )
     plt.title("Confusion Matrix (row-normalised)", fontsize=14, pad=20)
@@ -153,7 +150,7 @@ def run_confusion(model_path: Optional[str], split: str) -> int:
     print(f"Dataset config: {data_yaml}")
 
     model = YOLO(str(selected_model))
-    metrics = model.val(data=data_yaml, split=split, plots=False)
+    metrics = model.val(data=str(data_yaml), split=split, plots=False)
 
     confusion = getattr(metrics, "confusion_matrix", None)
     if confusion is None or confusion.matrix is None:
@@ -161,7 +158,11 @@ def run_confusion(model_path: Optional[str], split: str) -> int:
         return 1
 
     matrix = confusion.matrix
-    class_names = list(getattr(metrics, "names", {}).values())
+
+    with data_yaml.open("r", encoding="utf-8") as stream:
+        data_cfg = yaml.safe_load(stream) or {}
+
+    class_names = _normalise_class_names(getattr(metrics, "names", {}), data_cfg)
 
     output_dir = selected_model.parent.parent / "analysis"
     output_dir.mkdir(exist_ok=True)
@@ -221,3 +222,17 @@ def main(args: Optional[Iterable[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def _normalise_class_names(metrics_names, data_cfg: dict) -> list[str]:
+    if isinstance(metrics_names, dict) and metrics_names:
+        base = [metrics_names[k] for k in sorted(metrics_names)]
+    elif isinstance(metrics_names, (list, tuple)) and metrics_names:
+        base = list(metrics_names)
+    else:
+        names = data_cfg.get("names", [])
+        if isinstance(names, dict):
+            base = [names[k] for k in sorted(names)]
+        else:
+            base = list(names)
+    return base

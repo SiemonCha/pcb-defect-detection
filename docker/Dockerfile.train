@@ -1,0 +1,24 @@
+```Dockerfile
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MPLBACKEND=Agg
+
+WORKDIR /workspace
+
+COPY pyproject.toml MANIFEST.in README.md /workspace/
+COPY src/ /workspace/src/
+COPY samples/ /workspace/samples/
+COPY requirements.txt /workspace/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir .[dev]
+
+VOLUME ["/workspace/runs", "/workspace/logs", "/workspace/outputs"]
+
+CMD ["pcb-dd", "train-baseline", "--epochs", "50"]
+```

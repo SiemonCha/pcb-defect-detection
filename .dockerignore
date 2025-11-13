@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.swp
+.env
+.venv
+runs/
+logs/
+outputs/
+datasets/
+node_modules/
+.idea/
+.vscode/
+.DS_Store
+.git
+.gitignore

@@ -31,6 +31,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
+from data import resolve_dataset_yaml
 
 class InferenceMonitor:
     def __init__(self, log_file='logs/inference_log.json'):
@@ -392,36 +393,32 @@ def main():
         # Live monitoring
         # Find test images
         try:
-            from pathlib import Path
-            import glob
-            
-            if os.path.exists('dataset_path.txt'):
-                with open('dataset_path.txt', 'r') as f:
-                    dataset_path = f.read().strip()
-                test_img_dir = os.path.join(dataset_path, 'test', 'images')
-            else:
-                test_img_dir = 'data/*/test/images'
-            
-            test_images = glob.glob(os.path.join(test_img_dir, '*.jpg')) + \
-                         glob.glob(os.path.join(test_img_dir, '*.png'))
-            
+            data_yaml = resolve_dataset_yaml()
+            dataset_root = data_yaml.parent
+            test_img_dir = dataset_root / 'test' / 'images'
+
+            test_images = sorted(test_img_dir.glob('*.jpg')) + sorted(test_img_dir.glob('*.png'))
+
             if not test_images:
-                print(f"xxxx No test images found")
+                print(f"xxxx No test images found in {test_img_dir}")
                 print(f"   Provide test images or use --analyze to analyze existing logs")
                 return
-            
+
             # Start monitoring
             log_file = monitor_live(
                 args.api_url,
-                test_images,
+                [str(path) for path in test_images],
                 args.duration,
                 args.interval
             )
-            
+
             # Generate report
             print(f"\n>>>> Generating report...")
             generate_report(log_file)
-            
+
+        except FileNotFoundError as err:
+            print(f"xxxx {err}")
+            print("   Run the data download step or generate the sample dataset first.")
         except Exception as e:
             print(f"xxxx Monitoring failed: {e}")
             print(f"\nUsage:")

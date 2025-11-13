@@ -18,6 +18,9 @@ import glob
 import json
 from datetime import datetime
 from pathlib import Path
+import yaml
+
+from data import resolve_dataset_yaml
 
 
 DEFAULT_MODEL_PATTERNS = [
@@ -53,50 +56,37 @@ def find_model_path(cli_arg: Optional[str] = None, patterns: Optional[List[str]]
     )
 
 
-def find_data_yaml() -> str:
+def find_data_yaml() -> Path:
     """Find dataset configuration."""
-    dataset_path_file = Path("dataset_path.txt")
-    if dataset_path_file.exists():
-        dataset_location = dataset_path_file.read_text().strip()
-        data_yaml = Path(dataset_location) / "data.yaml"
-        if data_yaml.exists():
-            return str(data_yaml)
-
-    yaml_matches = glob.glob("data/*/data.yaml") + glob.glob("data/data.yaml")
-    if yaml_matches:
-        return yaml_matches[0]
-
-    data_yaml = Path("data/data.yaml")
-    if data_yaml.exists():
-        return str(data_yaml)
-
-    raise FileNotFoundError(
-        f"Dataset not found: {data_yaml}\n"
-        "Run: python -m cli data-download"
-    )
+    return resolve_dataset_yaml()
 
 
-def evaluate_model(model_path: str, data_yaml: str, log_dir: Path | None = None) -> EvaluationResult:
+def evaluate_model(model_path: str | Path, data_yaml: Path, log_dir: Path | None = None) -> EvaluationResult:
     """Run evaluation on the test split and persist outputs."""
     log_dir = log_dir or Path("logs")
     log_dir.mkdir(exist_ok=True)
 
-    model = YOLO(model_path)
+    model_path = Path(model_path)
+    data_yaml = Path(data_yaml)
+
+    model = YOLO(str(model_path))
     print(f">>>>> Evaluating: {model_path}")
     print(f">>>>> Dataset: {data_yaml}")
 
     metrics = model.val(
-        data=data_yaml,
+        data=str(data_yaml),
         split="test",
         plots=True,
         save_json=True,
     )
 
+    class_names = _normalise_class_names(metrics, data_yaml)
+
     results = {
         "timestamp": datetime.now().isoformat(),
-        "model_path": model_path,
-        "model_name": os.path.basename(model_path),
-        "dataset": data_yaml,
+        "model_path": str(model_path),
+        "model_name": model_path.name,
+        "dataset": str(data_yaml),
         "metrics": {
             "mAP@0.5": float(metrics.box.map50),
             "mAP@0.5:0.95": float(metrics.box.map),
@@ -107,8 +97,8 @@ def evaluate_model(model_path: str, data_yaml: str, log_dir: Path | None = None)
         "speed": {},
     }
 
-    if hasattr(metrics, "names") and hasattr(metrics.box, "ap50"):
-        for name, ap in zip(metrics.names.values(), metrics.box.ap50):
+    if class_names and hasattr(metrics.box, "ap50"):
+        for name, ap in zip(class_names, metrics.box.ap50):
             results["per_class"][name] = {"AP@0.5": float(ap)}
 
     total_time = 0.0
@@ -144,19 +134,19 @@ def evaluate_model(model_path: str, data_yaml: str, log_dir: Path | None = None)
 
     json_log = log_dir / "evaluation_log.json"
     if json_log.exists():
-        with open(json_log, "r") as file:
+        with json_log.open("r", encoding="utf-8") as file:
             all_results = json.load(file)
     else:
         all_results = []
 
     all_results.append(results)
-    with open(json_log, "w") as file:
+    with json_log.open("w", encoding="utf-8") as file:
         json.dump(all_results, file, indent=2)
 
     print(f"\n>>>>> Results logged to: {json_log}")
 
     report_file = log_dir / f"evaluation_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    with open(report_file, "w") as file:
+    with report_file.open("w", encoding="utf-8") as file:
         file.write("EVALUATION REPORT\n")
         file.write("=" * 60 + "\n\n")
         file.write(f"Timestamp: {results['timestamp']}\n")
@@ -231,9 +221,9 @@ def evaluate_model(model_path: str, data_yaml: str, log_dir: Path | None = None)
     )
 
 
-def main(argv: Optional[List[str]] = None):
+def main(cli_args: Optional[list[str]] = None) -> int:
     """CLI entry point."""
-    argv = argv or sys.argv[1:]
+    argv = cli_args or sys.argv[1:]
     model_arg = argv[0] if argv else None
     data_yaml = find_data_yaml()
     model_path = find_model_path(model_arg)
@@ -246,3 +236,18 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n\nEvaluation interrupted by user")
         sys.exit(1)
+
+
+def _normalise_class_names(metrics, data_yaml: Path) -> list[str]:
+    if hasattr(metrics, "names") and metrics.names:
+        names = metrics.names
+        if isinstance(names, dict):
+            return [names[k] for k in sorted(names)]
+        return list(names)
+
+    with data_yaml.open("r", encoding="utf-8") as stream:
+        cfg = yaml.safe_load(stream) or {}
+    names_cfg = cfg.get("names", [])
+    if isinstance(names_cfg, dict):
+        return [names_cfg[k] for k in sorted(names_cfg)]
+    return list(names_cfg)

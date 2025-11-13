@@ -23,109 +23,96 @@ import shutil
 import random
 from collections import defaultdict
 import numpy as np
+from data import resolve_dataset_yaml
 
-def find_data_yaml():
-    if os.path.exists('dataset_path.txt'):
-        with open('dataset_path.txt', 'r') as f:
-            dataset_path = f.read().strip()
-        data_yaml = os.path.join(dataset_path, 'data.yaml')
-        if os.path.exists(data_yaml):
-            return data_yaml
-    patterns = ['data/*/data.yaml', 'data/data.yaml']
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    raise FileNotFoundError("data.yaml not found")
+def find_data_yaml() -> Path:
+    return resolve_dataset_yaml()
 
-def create_fold_splits(dataset_root, n_folds=5, seed=42):
+def create_fold_splits(dataset_root: Path, n_folds=5, seed=42):
     """Create K-fold splits from train+val data"""
+    dataset_root = Path(dataset_root)
     random.seed(seed)
-    
-    # Collect all training images
-    train_img_dir = os.path.join(dataset_root, 'train', 'images')
-    valid_img_dir = os.path.join(dataset_root, 'valid', 'images')
-    
+
+    train_img_dir = dataset_root / 'train' / 'images'
+    valid_img_dir = dataset_root / 'valid' / 'images'
+
     all_images = []
-    
-    if os.path.exists(train_img_dir):
-        all_images.extend(glob.glob(os.path.join(train_img_dir, '*.jpg')))
-        all_images.extend(glob.glob(os.path.join(train_img_dir, '*.png')))
-    
-    if os.path.exists(valid_img_dir):
-        all_images.extend(glob.glob(os.path.join(valid_img_dir, '*.jpg')))
-        all_images.extend(glob.glob(os.path.join(valid_img_dir, '*.png')))
-    
+
+    if train_img_dir.exists():
+        all_images.extend(train_img_dir.glob('*.jpg'))
+        all_images.extend(train_img_dir.glob('*.png'))
+
+    if valid_img_dir.exists():
+        all_images.extend(valid_img_dir.glob('*.jpg'))
+        all_images.extend(valid_img_dir.glob('*.png'))
+
     if not all_images:
         raise ValueError("No training/validation images found")
-    
+
     # Shuffle
     random.shuffle(all_images)
-    
+
     # Split into folds
-    fold_size = len(all_images) // n_folds
+    fold_size = max(1, len(all_images) // n_folds)
     folds = []
-    
+
     for i in range(n_folds):
         start_idx = i * fold_size
         end_idx = start_idx + fold_size if i < n_folds - 1 else len(all_images)
         folds.append(all_images[start_idx:end_idx])
-    
+
     return folds
 
-def create_fold_dataset(dataset_root, folds, val_fold_idx, cv_root):
+
+def create_fold_dataset(dataset_root: Path, folds, val_fold_idx, cv_root):
     """Create dataset for specific fold"""
+    dataset_root = Path(dataset_root)
     fold_dir = cv_root / f'fold_{val_fold_idx}'
     fold_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create train and val directories
     train_img_dir = fold_dir / 'train' / 'images'
     train_lbl_dir = fold_dir / 'train' / 'labels'
     val_img_dir = fold_dir / 'val' / 'images'
     val_lbl_dir = fold_dir / 'val' / 'labels'
-    
-    for d in [train_img_dir, train_lbl_dir, val_img_dir, val_lbl_dir]:
-        d.mkdir(parents=True, exist_ok=True)
-    
-    # Copy files
+
+    for directory in [train_img_dir, train_lbl_dir, val_img_dir, val_lbl_dir]:
+        directory.mkdir(parents=True, exist_ok=True)
+
     for fold_idx, fold_images in enumerate(folds):
         is_val = (fold_idx == val_fold_idx)
-        
+
         for img_path in fold_images:
-            img_name = os.path.basename(img_path)
-            label_name = os.path.splitext(img_name)[0] + '.txt'
-            
-            # Find label file
-            img_dir = os.path.dirname(img_path)
-            label_dir = img_dir.replace('images', 'labels')
-            label_path = os.path.join(label_dir, label_name)
-            
-            # Copy to appropriate split
+            img_path = Path(img_path)
+            img_name = img_path.name
+            label_name = f"{img_path.stem}.txt"
+
+            label_path = img_path.parent.parent / 'labels' / label_name
+
             if is_val:
                 shutil.copy(img_path, val_img_dir / img_name)
-                if os.path.exists(label_path):
+                if label_path.exists():
                     shutil.copy(label_path, val_lbl_dir / label_name)
             else:
                 shutil.copy(img_path, train_img_dir / img_name)
-                if os.path.exists(label_path):
+                if label_path.exists():
                     shutil.copy(label_path, train_lbl_dir / label_name)
-    
-    # Create data.yaml for this fold
-    with open(dataset_root / 'data.yaml', 'r') as f:
+
+    with (dataset_root / 'data.yaml').open('r', encoding='utf-8') as f:
         original_config = yaml.safe_load(f)
-    
+
     fold_config = {
-        'path': str(fold_dir.absolute()),
+        'path': str(fold_dir.resolve()),
         'train': 'train/images',
         'val': 'val/images',
         'nc': original_config['nc'],
         'names': original_config['names']
     }
-    
+
     fold_yaml_path = fold_dir / 'data.yaml'
-    with open(fold_yaml_path, 'w') as f:
+    with fold_yaml_path.open('w', encoding='utf-8') as f:
         yaml.dump(fold_config, f, default_flow_style=False)
-    
+
     return fold_yaml_path
 
 def train_fold(fold_idx, data_yaml, device, epochs=50, project='runs/cv'):
@@ -194,7 +181,7 @@ def main():
     
     # Setup
     data_yaml = find_data_yaml()
-    dataset_root = Path(os.path.dirname(data_yaml))
+    dataset_root = data_yaml.parent
     
     # Get device
     if torch.cuda.is_available():

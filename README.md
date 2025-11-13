@@ -6,26 +6,58 @@ Neural-network-based defect detection for printed circuit boards using YOLOv8, p
 
 ```bash
 # 1. Install dependencies and validate environment
+pip install -e ".[dev]"
 python install.py
 python pre_flight_check.py
 
-# 2. Download the reference dataset
-python -m cli data-download
+# 2. (Optional) Generate a tiny synthetic dataset for local experimentation
+python samples/generate_sample_dataset.py
 
-# 3. Train the baseline model
-python -m cli train-baseline
+# 3. Train the baseline model (uses config/default.yaml or your override)
+pcb-dd train-baseline
 
 # 4. Generate evaluation reports and artefacts
 python auto_analyze.py
 
 # 5. Optional: run the extended analysis suite
-python -m cli quick-analysis
+pcb-dd quick-analysis
 
 # Optional: execute the full pipeline in one command
 python start.py
 ```
 
-Set `PYTHONPATH=$(pwd)/src` (or prefix commands with `PYTHONPATH=src`) so the CLI package is importable from the repository root. Outputs are written to `logs/` and `outputs/`.
+### Sample dataset
+
+For quick smoke tests, generate a miniature dataset and point the toolkit at it:
+
+```bash
+python samples/generate_sample_dataset.py --output samples/sample_dataset
+export PCB_CONFIG=$(pwd)/samples/sample_config.yaml
+pcb-dd train-baseline
+```
+
+The generator writes a YOLO-formatted dataset to `samples/sample_dataset/` and the
+`sample_config.yaml` file configures the CLI to use it.
+
+### Configuration overrides
+
+Project defaults live in `config/default.yaml`. Override values by supplying your own YAML and setting `PCB_CONFIG=/path/to/override.yaml` before running commands. To pin a specific dataset `data.yaml`, set `PCB_DATASET=/path/to/data.yaml`. CLI flags still take precedence.
+
+See `docs/configuration.md` for a detailed walkthrough of configuration layering and environment variable support.
+
+Once the project is installed editable (`pip install -e ".[dev]"`), the console script `pcb-dd` is available globally. Without installation, prefix commands with `PYTHONPATH=$(pwd)/src` so the CLI package is importable from the repository root. Outputs are written to `logs/` and `outputs/`.
+
+## Documentation
+
+The docs folder provides deeper guidance:
+
+- [Quick Start](docs/quickstart.md) – extended walkthroughs for local setup and the sample dataset.
+- [Configuration Guide](docs/configuration.md) – environment variables, overrides, and dataset resolution.
+- [Operational Workflows](docs/workflows.md) – training, evaluation, deployment, and monitoring playbooks.
+- [Troubleshooting](docs/troubleshooting.md) – common issues and their fixes.
+- [Docker Guide](docker/README.md) – container images for training and the API.
+
+Consult `docs/README.md` for the full index.
 
 ---
 
@@ -35,35 +67,35 @@ The repository bundles utilities that focus on two main areas: exploratory analy
 
 ### Analysis Utilities
 
-- `python -m cli failure-analysis`: inspect misclassified samples with visual overlays
-- `python -m cli interpretability`: generate attention maps for model predictions
+- `pcb-dd failure-analysis`: inspect misclassified samples with visual overlays
+- `pcb-dd interpretability`: generate attention maps for model predictions
 - `python -m training.hyperparameter`: run Optuna-based hyperparameter searches
 - `python -m training.cross_validation`: compute cross-validation metrics and confidence intervals
-- `python -m cli dataset-analysis`: summarise label distribution and potential imbalances
+- `pcb-dd dataset-analysis`: summarise label distribution and potential imbalances
 
 ### Deployment Utilities
 
-- `python -m cli quantize`: export an INT8-quantized ONNX model for faster inference
-- `python -m cli robustness`: evaluate robustness against synthetic corruptions
-- `python -m cli monitor`: monitor inference performance and collect logs
+- `pcb-dd quantize`: export an INT8-quantized ONNX model for faster inference
+- `pcb-dd robustness`: evaluate robustness against synthetic corruptions
+- `pcb-dd monitor`: monitor inference performance and collect logs
 
 ### Quick Access
 
 ```bash
 # Run the combined analysis workflow
-python -m cli quick-analysis
+pcb-dd quick-analysis
 
 # Example targeted commands
-python -m cli failure-analysis        # failure case inspection
-python -m cli interpretability        # saliency and attention maps
-python -m cli dataset-analysis        # dataset statistics
-python -m cli quantize                # ONNX quantisation
-python -m cli robustness              # robustness evaluation
+pcb-dd failure-analysis        # failure case inspection
+pcb-dd interpretability        # saliency and attention maps
+pcb-dd dataset-analysis        # dataset statistics
+pcb-dd quantize                # ONNX quantisation
+pcb-dd robustness              # robustness evaluation
 python -m training.cross_validation   # cross-validation experiment
 python -m training.hyperparameter     # hyperparameter search
 ```
 
-See [ADVANCED_COMPONENTS_GUIDE.md](docs/ADVANCED_COMPONENTS_GUIDE.md) for details.
+See [Operational Workflows](docs/workflows.md) for detailed recipes.
 
 ---
 
@@ -125,19 +157,19 @@ pcb-defect-detection/
 
 ```bash
 # Training
-python -m cli train-baseline
+pcb-dd train-baseline
 
 # Complete Analysis
 python auto_analyze.py
 
 # Individual Commands
-python -m cli evaluate                     # Just evaluation
-python -m cli confusion                    # Just confusion matrix
-python -m cli export-onnx                  # Just ONNX export
+pcb-dd evaluate                     # Just evaluation
+pcb-dd confusion                    # Just confusion matrix
+pcb-dd export-onnx                  # Just ONNX export
 
 # API Deployment
-python -m cli api                          # Start server
-python tests/test_api.py                                        # Test API
+pcb-dd api                          # Start server
+pytest tests/test_api.py                                        # Test API
 ```
 
 ### Advanced Workflow (NEW)
@@ -146,7 +178,7 @@ python tests/test_api.py                                        # Test API
 
 ```bash
 # 1. Quick comprehensive analysis
-python -m cli quick-analysis
+pcb-dd quick-analysis
 
 # 2. Deep statistical analysis (optional)
 python -m training.cross_validation --quick        # 2-3 hours
@@ -165,14 +197,14 @@ python -m training.hyperparameter --quick         # 5-10 hours
 
 ```bash
 # 1. Optimize for production
-python -m cli quantize --model outputs/models/best.pt
+pcb-dd quantize --model outputs/models/best.pt
 
 # 2. Test robustness
-python -m cli robustness --model outputs/models/best_int8.onnx
+pcb-dd robustness --model outputs/models/best_int8.onnx
 
 # 3. Deploy with monitoring
-python -m cli api --model outputs/models/best_int8.onnx
-python -m cli monitor            # Track performance
+pcb-dd api --model outputs/models/best_int8.onnx
+pcb-dd monitor            # Track performance
 ```
 
 **What you get:**
@@ -212,13 +244,13 @@ After running analyses:
 1. **Train model:**
 
    ```bash
-   python -m cli train-baseline
+   pcb-dd train-baseline
    ```
 
 2. **Generate comprehensive analysis:**
 
    ```bash
-   python -m cli quick-analysis
+   pcb-dd quick-analysis
    ```
 
 3. **Optional - Deep analysis:**
@@ -246,21 +278,21 @@ After running analyses:
 1. **Train and optimize:**
 
    ```bash
-   python -m cli train-baseline
-   python -m cli quantize --model outputs/models/best.pt
-   python -m cli robustness --model outputs/models/best_int8.onnx
+   pcb-dd train-baseline
+   pcb-dd quantize --model outputs/models/best.pt
+   pcb-dd robustness --model outputs/models/best_int8.onnx
    ```
 
 2. **Deploy:**
 
    ```bash
-   python -m cli api --model outputs/models/best_int8.onnx
+   pcb-dd api --model outputs/models/best_int8.onnx
    ```
 
 3. **Monitor:**
 
    ```bash
-   python -m cli monitor --api-url http://localhost:8000
+   pcb-dd monitor --api-url http://localhost:8000
    ```
 
 4. **Verify service-level targets:**
@@ -276,13 +308,13 @@ After running analyses:
 ### Transfer Learning
 
 ```bash
-python -m cli transfer-learning --data path/to/new_data.yaml
+pcb-dd transfer-learning --data path/to/new_data.yaml
 ```
 
 ### Custom Model
 
 ```bash
-python -m cli evaluate runs/train/custom/weights/best.pt
+pcb-dd evaluate runs/train/custom/weights/best.pt
 ```
 
 ### Hyperparameter Optimization
@@ -331,53 +363,36 @@ When preparing reports or documentation, reference the exact figures obtained in
 ```bash
 python tests/run_tests.py    # Complete test suite
 python tests/test_gpu.py     # GPU detection
-python tests/test_api.py     # API testing
+pytest tests/test_api.py     # API testing
 
 # Additional checks
-python -m cli verify-setup        # Verify dependencies
-python -m cli robustness          # Edge case testing
-python -m cli monitor             # Production monitoring
+pcb-dd verify-setup        # Verify dependencies
+pcb-dd robustness          # Edge case testing
+pcb-dd monitor             # Production monitoring
 ```
 
 ---
 
-## Documentation
+## Contributing & Support
 
-See `docs/` folder for:
+We welcome contributions. Please review [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request. For questions or
+bug reports, open an issue with logs from `logs/` and the commands run.
 
-- **QUICK_REFERENCE.md** - Command reference
-- **DEPLOYMENT.md** - Deployment guide
-- **ADVANCED_COMPONENTS_GUIDE.md** - Detailed note on analysis and production tooling
-- **SUMMARY_OF_ADDITIONS.md** - Overview of supplemental functionality
-- **INSTALLATION_GUIDE.md** - Step-by-step setup instructions
+### Experiment tracking
 
----
+Enable Weights & Biases logging by updating `config/default.yaml` (or an override):
 
-## Installation
-
-### Basic Installation (Existing)
-
-```bash
-# 1. Clone repository
-git clone <your-repo>
-cd pcb-defect-detection
-
-# 2. Install dependencies
-python install.py
-
-# 3. Verify installation
-python tests/test_gpu.py
+```yaml
+tracking:
+  enabled: true
+  project: pcb-defect-detection
+  entity: your-team
 ```
 
-### Install Advanced Components (NEW)
+Then run `wandb login` once and launch training (`pcb-dd train-baseline`).
 
-```bash
-# Install additional dependencies for advanced features
-pip install optuna scipy
+### Docker
 
-# Verify advanced components
-python -m cli verify-setup
-
-# Run quick analysis to test
-python -m cli quick-analysis
-```
+Build container images via `docker compose build` (see `docker/README.md`) to run the API
+or training jobs in a reproducible environment.
