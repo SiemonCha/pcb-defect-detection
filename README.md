@@ -348,15 +348,6 @@ More help: `docs/troubleshooting.md`
 - **Hyperparameter tuning** - Can take days. Use `--quick` for testing.
 - **W&B tracking** - Disabled by default. Enable in config if you want it.
 
-## Contributing
-
-This started as coursework but contributions welcome:
-
-1. Fork it
-2. Create a branch (`git checkout -b feature/whatever`)
-3. Make your changes
-4. Add tests if possible
-5. Submit a PR
 
 See `CONTRIBUTING.md` for coding standards.
 
@@ -373,29 +364,6 @@ Free to use for academic or commercial projects. Attribution appreciated but not
 - **PCB Defects Dataset** - various contributors on Roboflow Universe
 - My university ML course for forcing me to actually finish this
 
-## Citation
-
-If you use this for research:
-
-```bibtex
-@misc{pcb-defect-detection,
-  author = {Sansiri Charoenpong},
-  title = {PCB Defect Detection: End-to-end YOLOv8 Pipeline},
-  year = {2025},
-  publisher = {GitHub},
-  url = {https://github.com/siemoncha/pcb-defect-detection}
-}
-```
-
-## Contact
-
-- GitHub Issues for bugs/questions
-- Pull requests for contributions
-- Or just fork it and make it your own
-
-Built with frustration, coffee, and surprisingly few Stack Overflow tabs.
-
----
 
 **Status:** Working and tested for coursework. Production use at your own risk (but it should be fine).
 
