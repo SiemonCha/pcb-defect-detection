@@ -1,398 +1,402 @@
 # PCB Defect Detection
 
-Neural-network-based defect detection for printed circuit boards using YOLOv8, packaged with supporting utilities for training, evaluation, deployment, and analysis.
+Automated PCB defect detection using YOLOv8. Train models, run evaluations, deploy to production — everything you need for computer vision in manufacturing.
+
+Built for a university ML project, but it actually works. Runs on NVIDIA/AMD GPUs, Apple Silicon, and CPU-only systems.
+
+## Why this exists
+
+Most PCB detection tutorials stop at "congrats, you trained a model!" This project goes further:
+
+- **Cross-platform** - Works on whatever hardware you have (tested on NVIDIA, Apple M1, CPU)
+- **Actually deploys** - REST API, Docker containers, performance monitoring
+- **Production features** - ONNX optimization, INT8 quantization, robustness testing
+- **Research-friendly** - Cross-validation, hyperparameter tuning, statistical analysis
+- **Honest logging** - Everything auto-logs to `logs/` so you can write reports
+
+I needed something that would work for both my coursework AND potentially in real manufacturing. So here we are.
 
 ## Quick Start
 
-```bash
-# 1. Install dependencies and validate environment
-pip install -e ".[dev]"
-python install.py
-python pre_flight_check.py
+**Fastest path (5 minutes):**
 
-# 2. (Optional) Generate a tiny synthetic dataset for local experimentation
+```bash
+# 1. Install
+pip install -e ".[dev]"
+
+# 2. Generate a tiny test dataset
 python samples/generate_sample_dataset.py
 
-# 3. Train the baseline model (uses config/default.yaml or your override)
-pcb-dd train-baseline
+# 3. Train (takes ~2 minutes on GPU, ~10 on CPU)
+export PCB_CONFIG=$(pwd)/samples/sample_config.yaml
+pcb-dd train-baseline --epochs 10
 
-# 4. Generate evaluation reports and artefacts
-python auto_analyze.py
+# 4. See results
+ls logs/
+```
 
-# 5. Optional: run the extended analysis suite
-pcb-dd quick-analysis
+**Full workflow (30-45 minutes):**
 
-# Optional: execute the full pipeline in one command
+```bash
+# Runs everything: download dataset, train, evaluate, generate reports
 python start.py
 ```
 
-### Sample dataset
-
-For quick smoke tests, generate a miniature dataset and point the toolkit at it:
+**Just want to test the API?**
 
 ```bash
-python samples/generate_sample_dataset.py --output samples/sample_dataset
-export PCB_CONFIG=$(pwd)/samples/sample_config.yaml
+# Use a pretrained model or train one first
 pcb-dd train-baseline
+pcb-dd api
+
+# In another terminal
+curl -X POST "http://localhost:8000/detect" \
+  -F "file=@path/to/pcb_image.jpg"
 ```
 
-The generator writes a YOLO-formatted dataset to `samples/sample_dataset/` and the
-`sample_config.yaml` file configures the CLI to use it.
+## What's in the box
 
-### Configuration overrides
+### Core features (tested, reliable)
 
-Project defaults live in `config/default.yaml`. Override values by supplying your own YAML and setting `PCB_CONFIG=/path/to/override.yaml` before running commands. To pin a specific dataset `data.yaml`, set `PCB_DATASET=/path/to/data.yaml`. CLI flags still take precedence.
+- **Training** - YOLOv8n baseline (fast) or YOLOv8s production (accurate)
+- **Evaluation** - Confusion matrices, per-class metrics, auto-generated reports
+- **Deployment** - FastAPI server, ONNX export, Docker containers
+- **Multi-platform** - Auto-detects your hardware (CUDA, ROCm, MPS, CPU)
 
-See `docs/configuration.md` for a detailed walkthrough of configuration layering and environment variable support.
+### Advanced features (work but may need tweaking)
 
-Once the project is installed editable (`pip install -e ".[dev]"`), the console script `pcb-dd` is available globally. Without installation, prefix commands with `PYTHONPATH=$(pwd)/src` so the CLI package is importable from the repository root. Outputs are written to `logs/` and `outputs/`.
+- **Failure analysis** - Visualize what the model gets wrong
+- **Interpretability** - Attention maps showing where the model looks
+- **Cross-validation** - Statistical confidence intervals (takes hours)
+- **Hyperparameter tuning** - Optuna-based search (also takes hours)
+- **Robustness testing** - How well does it handle noise, blur, etc.
+- **INT8 quantization** - 3-4x speedup for deployment
 
-## Documentation
-
-The docs folder provides deeper guidance:
-
-- [Quick Start](docs/quickstart.md) – extended walkthroughs for local setup and the sample dataset.
-- [Configuration Guide](docs/configuration.md) – environment variables, overrides, and dataset resolution.
-- [Operational Workflows](docs/workflows.md) – training, evaluation, deployment, and monitoring playbooks.
-- [Troubleshooting](docs/troubleshooting.md) – common issues and their fixes.
-- [Docker Guide](docker/README.md) – container images for training and the API.
-
-Consult `docs/README.md` for the full index.
-
----
-
-## Component Overview
-
-The repository bundles utilities that focus on two main areas: exploratory analysis for research-style work, and production capabilities needed for deployment. The key command-line entry points are listed below.
-
-### Analysis Utilities
-
-- `pcb-dd failure-analysis`: inspect misclassified samples with visual overlays
-- `pcb-dd interpretability`: generate attention maps for model predictions
-- `python -m training.hyperparameter`: run Optuna-based hyperparameter searches
-- `python -m training.cross_validation`: compute cross-validation metrics and confidence intervals
-- `pcb-dd dataset-analysis`: summarise label distribution and potential imbalances
-
-### Deployment Utilities
-
-- `pcb-dd quantize`: export an INT8-quantized ONNX model for faster inference
-- `pcb-dd robustness`: evaluate robustness against synthetic corruptions
-- `pcb-dd monitor`: monitor inference performance and collect logs
-
-### Quick Access
-
-```bash
-# Run the combined analysis workflow
-pcb-dd quick-analysis
-
-# Example targeted commands
-pcb-dd failure-analysis        # failure case inspection
-pcb-dd interpretability        # saliency and attention maps
-pcb-dd dataset-analysis        # dataset statistics
-pcb-dd quantize                # ONNX quantisation
-pcb-dd robustness              # robustness evaluation
-python -m training.cross_validation   # cross-validation experiment
-python -m training.hyperparameter     # hyperparameter search
-```
-
-See [Operational Workflows](docs/workflows.md) for detailed recipes.
-
----
+The advanced stuff is there because I wanted to learn it. Your mileage may vary.
 
 ## Project Structure
 
 ```
 pcb-defect-detection/
-|-- src/
-|   |-- analysis/
-|   |-- cli.py
-|   |-- config/
-|   |-- data/
-|   |-- deployment/
-|   |-- evaluation/
-|   |-- setup/
-|   `-- training/
-|
-|-- auto_analyze.py
-|-- start.py
-|-- pre_flight_check.py
-|-- install.py
-|-- run_tests.py
-|-- tests/
-|-- logs/
-|-- runs/
-|-- outputs/
-|-- datasets/
-`-- requirements.txt
+├── src/                      # Main codebase
+│   ├── training/             # Baseline, production, transfer learning
+│   ├── evaluation/           # Metrics, confusion, interpretability
+│   ├── deployment/           # API, ONNX export, quantization
+│   ├── analysis/             # Dataset stats, failure cases
+│   └── cli.py                # Command-line interface
+│
+├── tests/                    # Unit tests (basic coverage)
+├── samples/                  # Sample dataset generator
+├── docker/                   # Docker configs
+├── docs/                     # Detailed guides
+│
+├── start.py                  # One-command full workflow
+├── auto_analyze.py           # Generate all reports
+└── requirements.txt          # Dependencies
 ```
 
----
+After training, check these directories:
 
-## Features
+- `runs/train/` - Model checkpoints and training curves
+- `logs/` - All reports, metrics, visualizations
+- `outputs/` - Final models and deployment artifacts
 
-### Core Capabilities
+## Installation
 
-- Structured logging for runs, reports, and exported artefacts
-- Multi-accelerator support: CUDA, ROCm, and Apple Metal Performance Shaders
-- Evaluation utilities including confusion matrices and summary metrics
-- ONNX export for accelerated inference
-- FastAPI-based inference service
-- Transfer learning workflow for new PCB datasets
-
-### Extended Capabilities
-
-- Failure analysis visualisations to inspect false positives/negatives
-- Interpretability tooling (Grad-CAM and confidence curves)
-- Automated hyperparameter search with Optuna
-- Cross-validation driver for statistical evaluation
-- Dataset-level imbalance diagnostics
-- INT8 quantisation for deployment targets
-- Robustness benchmarking against predefined corruptions
-
----
-
-## Workflow
-
-### Basic Workflow (Existing)
+**Recommended (virtual environment):**
 
 ```bash
-# Training
-pcb-dd train-baseline
+# Create environment
+python -m venv .venv
+source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
 
-# Complete Analysis
-python auto_analyze.py
+# Install project
+pip install -e ".[dev]"
 
-# Individual Commands
-pcb-dd evaluate                     # Just evaluation
-pcb-dd confusion                    # Just confusion matrix
-pcb-dd export-onnx                  # Just ONNX export
-
-# API Deployment
-pcb-dd api                          # Start server
-pytest tests/test_api.py                                        # Test API
+# Platform-specific packages (PyTorch, ONNX Runtime)
+python install.py
 ```
 
-### Advanced Workflow (NEW)
+The `install.py` script auto-detects your GPU and installs the right PyTorch/ONNX builds. If it fails, check `docs/troubleshooting.md`.
 
-#### For Academic/Research (1-2 hours)
+**Requirements:**
+
+- Python 3.10 or 3.11 (3.12 works but 3.11 recommended)
+- 8GB+ RAM
+- GPU recommended but not required
+
+## Common Workflows
+
+### Training a model
 
 ```bash
-# 1. Quick comprehensive analysis
+# Fast baseline (good enough for most cases)
+pcb-dd train-baseline --epochs 50
+
+# Higher accuracy production model
+pcb-dd train-production --epochs 100
+
+# Fine-tune on your own data
+pcb-dd transfer-learning --data path/to/your/data.yaml
+```
+
+Training auto-logs everything to `logs/training/`.
+
+### Evaluating performance
+
+```bash
+# Basic metrics
+pcb-dd evaluate
+
+# Confusion matrix with per-class breakdown
+pcb-dd confusion
+
+# Run everything (dataset analysis, failures, interpretability)
 pcb-dd quick-analysis
-
-# 2. Deep statistical analysis (optional)
-python -m training.cross_validation --quick        # 2-3 hours
-python -m training.hyperparameter --quick         # 5-10 hours
 ```
 
-**What you get:**
+Check `logs/` for generated reports and visualizations.
 
-- Class distribution analysis
-- Failure case visualizations
-- Attention maps
-- Cross-validated metrics with confidence intervals
-- Optimized hyperparameters
-
-#### For Production Deployment (30 min)
+### Deploying to production
 
 ```bash
-# 1. Optimize for production
-pcb-dd quantize --model outputs/models/best.pt
+# Export to ONNX (faster inference)
+pcb-dd export-onnx
 
-# 2. Test robustness
-pcb-dd robustness --model outputs/models/best_int8.onnx
+# Quantize to INT8 (even faster)
+pcb-dd quantize
 
-# 3. Deploy with monitoring
-pcb-dd api --model outputs/models/best_int8.onnx
-pcb-dd monitor            # Track performance
+# Start REST API
+pcb-dd api --model runs/train/baseline_yolov8n*/weights/best.pt
+
+# Test it
+curl -X POST "http://localhost:8000/detect" \
+  -F "file=@test_image.jpg" \
+  -F "conf_threshold=0.25"
 ```
 
-**What you get:**
+API docs at `http://localhost:8000/docs`
 
-- Production-ready INT8 model (10-12ms inference)
-- Robustness scores for 11 corruption types
-- Real-time monitoring dashboard
+### Research/analysis features
 
----
-
-## Results Location
-
-After running analyses:
-
-### Basic Results (Existing)
-
-- **Logs**: `logs/` - All timestamped reports
-- **Models**: `outputs/models/` - Trained weights
-- **Plots**: `outputs/plots/` - Visualizations
-- **Reports**: `outputs/reports/` - Summary reports
-
-### Advanced Results (NEW)
-
-- **Dataset Analysis**: `logs/dataset_analysis/` - Class distributions
-- **Failure Cases**: `logs/failure_analysis/` - What model gets wrong
-- **Interpretability**: `logs/interpretability/` - Attention maps
-- **Robustness**: `logs/robustness/` - Edge case testing
-- **Monitoring**: `logs/monitoring/` - Production metrics
-- **Cross-Validation**: `logs/cross_validation_*/` - Statistical results
-
----
-
-## For Project Submission
-
-### Academic/Research Submission
-
-1. **Train model:**
-
-   ```bash
-   pcb-dd train-baseline
-   ```
-
-2. **Generate comprehensive analysis:**
-
-   ```bash
-   pcb-dd quick-analysis
-   ```
-
-3. **Optional - Deep analysis:**
-
-   ```bash
-   python -m training.cross_validation --quick
-   ```
-
-4. **Collect results from:**
-
-   - `logs/dataset_analysis/` -> Class distribution summary
-   - `logs/failure_analysis/` -> Notable failure cases
-   - `logs/interpretability/` -> Attention map visualisations
-   - `logs/cross_validation_*/` -> Cross-validation metrics
-
-5. **Include in report:**
-   - Dataset analysis showing class distribution
-   - Cross-validated metrics: "mAP@0.5 = 94.8% +/- 2.1%"
-   - Failure case examples with explanations
-   - Attention maps proving model focuses on defects
-   - Confusion matrix with per-class analysis
-
-### Production Deployment
-
-1. **Train and optimize:**
-
-   ```bash
-   pcb-dd train-baseline
-   pcb-dd quantize --model outputs/models/best.pt
-   pcb-dd robustness --model outputs/models/best_int8.onnx
-   ```
-
-2. **Deploy:**
-
-   ```bash
-   pcb-dd api --model outputs/models/best_int8.onnx
-   ```
-
-3. **Monitor:**
-
-   ```bash
-   pcb-dd monitor --api-url http://localhost:8000
-   ```
-
-4. **Verify service-level targets:**
-   - Measure latency (target P95 < 100 ms; reference runs show ~10-12 ms after optimisation)
-   - Confirm accuracy on validation data (target > 85%; baseline reference ~99.5%)
-   - Calculate error rate (target < 1%)
-   - Review robustness results across corruption scenarios (target: stable on at least 8 of 11 synthetic tests)
-
----
-
-## Advanced
-
-### Transfer Learning
+**Cross-validation (statistical confidence):**
 
 ```bash
-pcb-dd transfer-learning --data path/to/new_data.yaml
+# Quick 3-fold CV (~2 hours)
+python -m training.cross_validation --quick
+
+# Full 5-fold CV (~6 hours)
+python -m training.cross_validation --folds 5
 ```
 
-### Custom Model
+Gives you proper error bars: "mAP@0.5 = 94.8% ± 2.1%"
 
-```bash
-pcb-dd evaluate runs/train/custom/weights/best.pt
-```
-
-### Hyperparameter Optimization
+**Hyperparameter tuning:**
 
 ```bash
 # Quick search (10 trials, ~5 hours)
 python -m training.hyperparameter --quick
 
-# Full search (20 trials, ~15-30 hours)
-python -m training.hyperparameter --trials 20
+# Thorough search (50 trials, ~2 days)
+python -m training.hyperparameter --trials 50
 ```
 
-The best parameters are written to `logs/best_hyperparameters_*.yaml`; apply them to your training configuration manually.
+Results saved to `logs/best_hyperparameters_*.yaml`
 
-### Cross-Validation
+**Robustness testing:**
 
 ```bash
-# Quick 3-fold CV (~2-3 hours)
+# Test against noise, blur, occlusions, etc.
+pcb-dd robustness --samples 20
+```
+
+**Failure analysis:**
+
+```bash
+# See what the model gets wrong
+pcb-dd failure-analysis --top 30
+```
+
+## Performance
+
+Typical results on the included PCB dataset (your results will vary):
+
+| Model                | mAP@0.5 | Inference (ONNX) | Size |
+| -------------------- | ------- | ---------------- | ---- |
+| YOLOv8n (baseline)   | ~99.5%  | ~36ms            | 6MB  |
+| YOLOv8n (INT8)       | ~99.3%  | ~12ms            | 3MB  |
+| YOLOv8s (production) | ~99.7%  | ~48ms            | 22MB |
+
+Tested on:
+
+- NVIDIA RTX 3080 (primary testing)
+- Apple M1 Pro (works, slower)
+- CPU-only (works, very slow)
+- AMD ROCm (untested but should work)
+
+## Docker
+
+```bash
+# Build images
+cd docker
+docker compose build
+
+# Run training
+docker compose run --rm trainer pcb-dd train-baseline
+
+# Run API
+docker compose up api
+```
+
+See `docker/README.md` for GPU setup.
+
+## Configuration
+
+Project config lives in `src/pcb_defect_detection/config/default.yaml`. Override it:
+
+```bash
+# Option 1: Environment variable
+export PCB_CONFIG=/path/to/my_config.yaml
+
+# Option 2: Specify dataset directly
+export PCB_DATASET=/path/to/data.yaml
+```
+
+See `docs/configuration.md` for details.
+
+## For Academic Submissions
+
+**What to include in your report:**
+
+```bash
+# 1. Train and analyze
+python start.py
+
+# 2. Run comprehensive analysis
+pcb-dd quick-analysis
+
+# 3. Optional: statistical analysis
 python -m training.cross_validation --quick
-
-# Full 5-fold CV (~6-10 hours)
-python -m training.cross_validation --folds 5
-
-# Thorough 10-fold CV (~12-20 hours)
-python -m training.cross_validation --folds 10
 ```
 
----
+**Then collect:**
 
-## Performance Metrics
+- All files from `logs/` directory
+- Confusion matrices from `logs/confusion_matrix_*.png`
+- Training curves from `runs/train/*/results.png`
+- Model metrics from `logs/evaluation_*.txt`
 
-Typical reference results (baseline YOLOv8n trained on the supplied dataset):
+**Report structure suggestion:**
 
-- mAP@0.5: approximately 99.5% (single hold-out split)
-- Cross-validated mAP@0.5: approximately 94.8% +/- 2.1% (95% confidence interval)
-- ONNX (FP16) latency: roughly 36 ms per image on an RTX-class GPU
-- ONNX INT8 latency: roughly 10-12 ms per image after quantisation
-- Robustness evaluation: reliable on 8 of 11 common corruption scenarios
+1. Dataset analysis (class distribution, samples per class)
+2. Training approach (architecture choice, hyperparameters)
+3. Results (mAP, precision, recall with confidence intervals if you ran CV)
+4. Failure analysis (what the model struggles with)
+5. Deployment considerations (ONNX speedup, production requirements)
 
-When preparing reports or documentation, reference the exact figures obtained in your environment and include supporting artefacts (confusion matrices, robustness tables, quantisation benchmarks, etc.).
+## Troubleshooting
 
----
-
-## Testing
+**Installation issues:**
 
 ```bash
-python tests/run_tests.py    # Complete test suite
-python tests/test_gpu.py     # GPU detection
-pytest tests/test_api.py     # API testing
+# If install.py fails
+pip install --upgrade pip
+pip cache purge
+python install.py --force-cpu  # Try CPU-only first
 
-# Additional checks
-pcb-dd verify-setup        # Verify dependencies
-pcb-dd robustness          # Edge case testing
-pcb-dd monitor             # Production monitoring
+# Check what's wrong
+python pre_flight_check.py
 ```
+
+**Training crashes:**
+
+```bash
+# Reduce batch size
+pcb-dd train-baseline --batch 4
+
+# Disable mixed precision (for AMD/MPS)
+# Edit training script, set amp=False
+```
+
+**Import errors:**
+
+```bash
+# Make sure you installed editable
+pip install -e ".[dev]"
+
+# Check installation
+pcb-dd --help
+```
+
+**Dataset not found:**
+
+```bash
+# Generate sample dataset
+python samples/generate_sample_dataset.py
+export PCB_CONFIG=$(pwd)/samples/sample_config.yaml
+
+# Or set your dataset path
+export PCB_DATASET=/path/to/your/data.yaml
+```
+
+More help: `docs/troubleshooting.md`
+
+## Known Issues
+
+- **AMD ROCm support** - Theoretically works but untested. You'll probably need to tweak AMP settings.
+- **Cross-validation** - Takes hours. Start with `--quick` mode.
+- **Hyperparameter tuning** - Can take days. Use `--quick` for testing.
+- **W&B tracking** - Disabled by default. Enable in config if you want it.
+
+## Contributing
+
+This started as coursework but contributions welcome:
+
+1. Fork it
+2. Create a branch (`git checkout -b feature/whatever`)
+3. Make your changes
+4. Add tests if possible
+5. Submit a PR
+
+See `CONTRIBUTING.md` for coding standards.
+
+## License
+
+MIT License - see `LICENSE` file.
+
+Free to use for academic or commercial projects. Attribution appreciated but not required.
+
+## Acknowledgments
+
+- **YOLOv8** by Ultralytics - the actual detection engine
+- **Roboflow** - dataset hosting and augmentation
+- **PCB Defects Dataset** - various contributors on Roboflow Universe
+- My university ML course for forcing me to actually finish this
+
+## Citation
+
+If you use this for research:
+
+```bibtex
+@misc{pcb-defect-detection,
+  author = {Sansiri Charoenpong},
+  title = {PCB Defect Detection: End-to-end YOLOv8 Pipeline},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://github.com/siemoncha/pcb-defect-detection}
+}
+```
+
+## Contact
+
+- GitHub Issues for bugs/questions
+- Pull requests for contributions
+- Or just fork it and make it your own
+
+Built with frustration, coffee, and surprisingly few Stack Overflow tabs.
 
 ---
 
-## Contributing & Support
+**Status:** Working and tested for coursework. Production use at your own risk (but it should be fine).
 
-We welcome contributions. Please review [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request. For questions or
-bug reports, open an issue with logs from `logs/` and the commands run.
-
-### Experiment tracking
-
-Enable Weights & Biases logging by updating `config/default.yaml` (or an override):
-
-```yaml
-tracking:
-  enabled: true
-  project: pcb-defect-detection
-  entity: your-team
-```
-
-Then run `wandb login` once and launch training (`pcb-dd train-baseline`).
-
-### Docker
-
-Build container images via `docker compose build` (see `docker/README.md`) to run the API
-or training jobs in a reproducible environment.
+**Last updated:** November 2025
